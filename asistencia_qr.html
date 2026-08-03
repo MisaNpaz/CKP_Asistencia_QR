@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de asistencia con QR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f2;
+    --card: #ffffff;
+    --border: #dedcd2;
+    --text: #24231f;
+    --text-secondary: #6d6b62;
+    --accent: #185fa5;
+    --accent-bg: #e6f1fb;
+    --success: #0f6e56;
+    --success-bg: #e1f5ee;
+    --danger: #a32d2d;
+    --danger-bg: #fcebeb;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 4px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+  }
+  nav.tabs button {
+    flex: 1;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  nav.tabs button.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .card h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 14px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  input[type=text], input[type=number] {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  button.primary {
+    margin-top: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  button.primary:hover { opacity: 0.9; }
+  button.secondary {
+    background: #fff;
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .student-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .student-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+    background: #fafaf7;
+  }
+  .student-card .qr-box {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+  .student-card .name {
+    font-weight: 600;
+    font-size: 14px;
+    margin: 4px 0 2px;
+  }
+  .student-card .meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .badge.in { background: var(--success-bg); color: var(--success); }
+  .badge.out { background: #eee; color: var(--text-secondary); }
+  #reader {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  #scan-result {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    text-align: center;
+    display: none;
+  }
+  #scan-result.in { background: var(--success-bg); color: var(--success); display: block; }
+  #scan-result.out { background: var(--accent-bg); color: var(--accent); display: block; }
+  #scan-result.error { background: var(--danger-bg); color: var(--danger); display: block; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--text-secondary); font-weight: 500; }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: #f0efe9;
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .stat-card .label { font-size: 12px; color: var(--text-secondary); }
+  .stat-card .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+  .empty {
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px 0;
+  }
+  select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+  }
+  .row-actions { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+  .print-btn { font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Control de asistencia con QR</h1>
+  <span style="font-size:12px; color:#6d6b62;" id="student-count">0 alumnos</span>
+</header>
+
+<div class="container">
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="alumnos">Alumnos</button>
+    <button class="tab-btn" data-tab="escanear">Escanear</button>
+    <button class="tab-btn" data-tab="reportes">Reportes</button>
+  </nav>
+
+  <!-- ALUMNOS -->
+  <div class="panel active" id="panel-alumnos">
+    <div class="card">
+      <h2>Registrar alumno</h2>
+      <label>Nombre completo</label>
+      <input type="text" id="input-name" placeholder="Nombre del alumno">
+      <label>Edad</label>
+      <input type="number" id="input-age" placeholder="Edad">
+      <label>Cursos (separados por coma)</label>
+      <input type="text" id="input-courses" placeholder="Matemáticas, Historia, Inglés">
+      <button class="primary" id="btn-add-student">Agregar alumno</button>
+    </div>
+
+    <div class="card">
+      <h2>Lista de alumnos y sus códigos QR</h2>
+      <div id="student-list" class="student-grid"></div>
+    </div>
+  </div>
+
+  <!-- ESCANEAR -->
+  <div class="panel" id="panel-escanear">
+    <div class="card">
+      <h2>Escanear código QR</h2>
+      <div id="reader"></div>
+      <div id="scan-result"></div>
+    </div>
+  </div>
+
+  <!-- REPORTES -->
+  <div class="panel" id="panel-reportes">
+    <div class="card">
+      <h2>Resumen</h2>
+      <div class="stat-grid" id="stat-grid"></div>
+      <label>Filtrar por alumno</label>
+      <select id="filter-student"><option value="">Todos</option></select>
+      <table>
+        <thead>
+          <tr><th>Alumno</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr>
+        </thead>
+        <tbody id="report-body"></tbody>
+      </table>
+      <div class="empty" id="report-empty" style="display:none;">Aún no hay registros de asistencia.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let students = JSON.parse(localStorage.getItem('qr_students') || '[]');
+let records = JSON.parse(localStorage.getItem('qr_records') || '[]');
+let html5QrCode = null;
+
+function saveStudents() { localStorage.setItem('qr_students', JSON.stringify(students)); }
+function saveRecords() { localStorage.setItem('qr_records', JSON.stringify(records)); }
+function uid() { return 'STU-' + Math.random().toString(36).slice(2, 9).toUpperCase(); }
+
+function isCheckedIn(studentId) {
+  const open = records.filter(r => r.studentId === studentId && !r.checkout);
+  return open.length > 0;
+}
+
+function renderStudents() {
+  const list = document.getElementById('student-list');
+  const filterSelect = document.getElementById('filter-student');
+  document.getElementById('student-count').textContent = students.length + (students.length === 1 ? ' alumno' : ' alumnos');
+  filterSelect.innerHTML = '<option value="">Todos</option>' + students.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+  if (students.length === 0) {
+    list.innerHTML = '<div class="empty">Aún no hay alumnos registrados.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  students.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'student-card';
+    const checkedIn = isCheckedIn(s.id);
+    div.innerHTML = `
+      <div class="qr-box" id="qr-${s.id}"></div>
+      <div class="name">${s.name}</div>
+      <div class="meta">${s.age ? s.age + ' años · ' : ''}${(s.courses || []).join(', ')}</div>
+      <span class="badge ${checkedIn ? 'in' : 'out'}">${checkedIn ? 'En el aula' : 'Fuera'}</span>
+      <div class="row-actions" id="actions-${s.id}">
+        <button class="secondary print-btn" onclick="printQr('${s.id}')">Imprimir</button>
+        <button class="secondary print-btn" onclick="askRemoveStudent('${s.id}')">Eliminar</button>
+      </div>
+    `;
+    list.appendChild(div);
+    new QRCode(div.querySelector(`#qr-${s.id}`), {
+      text: s.id,
+      width: 120,
+      height: 120
+    });
+  });
+}
+
+function askRemoveStudent(id) {
+  const actionsDiv = document.getElementById('actions-' + id);
+  if (!actionsDiv) return;
+  actionsDiv.innerHTML = `
+    <span style="font-size:12px; color:var(--danger);">¿Eliminar?</span>
+    <button class="secondary print-btn" style="color:var(--danger); border-color:var(--danger);" onclick="removeStudent('${id}')">Sí, eliminar</button>
+    <button class="secondary print-btn" onclick="renderStudents()">Cancelar</button>
+  `;
+}
+
+function removeStudent(id) {
+  students = students.filter(s => s.id !== id);
+  saveStudents();
+  renderStudents();
+  renderReports();
+}
+
+function printQr(id) {
+  const student = students.find(s => s.id === id);
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>QR - ${student.name}</title></head>
+    <body style="text-align:center; font-family:sans-serif; padding-top:40px;">
+      <h3>${student.name}</h3>
+      <div id="print-qr" style="display:flex; justify-content:center;"></div>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+      <script>
+        new QRCode(document.getElementById('print-qr'), { text: "${student.id}", width: 220, height: 220 });
+        setTimeout(() => window.print(), 400);
+      <\/script>
+    </body></html>
+  `);
+}
+
+document.getElementById('btn-add-student').addEventListener('click', () => {
+  const name = document.getElementById('input-name').value.trim();
+  const age = document.getElementById('input-age').value.trim();
+  const coursesRaw = document.getElementById('input-courses').value.trim();
+  if (!name) { alert('Ingresa el nombre del alumno.'); return; }
+  const courses = coursesRaw ? coursesRaw.split(',').map(c => c.trim()).filter(Boolean) : [];
+  students.push({ id: uid(), name, age, courses });
+  saveStudents();
+  document.getElementById('input-name').value = '';
+  document.getElementById('input-age').value = '';
+  document.getElementById('input-courses').value = '';
+  renderStudents();
+  renderReports();
+});
+
+// TABS
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'escanear') startScanner();
+    else stopScanner();
+    if (btn.dataset.tab === 'reportes') renderReports();
+  });
+});
+
+function startScanner() {
+  if (html5QrCode) return;
+  html5QrCode = new Html5Qrcode("reader");
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 220 },
+    onScanSuccess,
+    () => {}
+  ).catch(err => {
+    document.getElementById('scan-result').className = 'error';
+    document.getElementById('scan-result').textContent = 'No se pudo acceder a la cámara: ' + err;
+  });
+}
+
+function stopScanner() {
+  if (html5QrCode) {
+    html5QrCode.stop().then(() => { html5QrCode = null; }).catch(() => { html5QrCode = null; });
+  }
+}
+
+let lastScanTime = 0;
+function onScanSuccess(decodedText) {
+  const now = Date.now();
+  if (now - lastScanTime < 2500) return;
+  lastScanTime = now;
+
+  const student = students.find(s => s.id === decodedText);
+  const resultBox = document.getElementById('scan-result');
+  if (!student) {
+    resultBox.className = 'error';
+    resultBox.textContent = 'Código QR no reconocido.';
+    return;
+  }
+
+  const openRecord = records.find(r => r.studentId === student.id && !r.checkout);
+  const nowDate = new Date();
+  const dateStr = nowDate.toLocaleDateString();
+  const timeStr = nowDate.toLocaleTimeString();
+
+  if (openRecord) {
+    openRecord.checkout = nowDate.toISOString();
+    saveRecords();
+    resultBox.className = 'out';
+    resultBox.textContent = `Salida registrada: ${student.name} a las ${timeStr}`;
+  } else {
+    records.push({ studentId: student.id, date: dateStr, checkin: nowDate.toISOString(), checkout: null });
+    saveRecords();
+    resultBox.className = 'in';
+    resultBox.textContent = `Entrada registrada: ${student.name} a las ${timeStr}`;
+  }
+  renderStudents();
+}
+
+function formatDuration(ms) {
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function renderReports() {
+  const filterId = document.getElementById('filter-student').value;
+  const tbody = document.getElementById('report-body');
+  const filtered = filterId ? records.filter(r => r.studentId === filterId) : records;
+
+  tbody.innerHTML = '';
+  document.getElementById('report-empty').style.display = filtered.length === 0 ? 'block' : 'none';
+
+  let totalMs = 0;
+  filtered.slice().reverse().forEach(r => {
+    const student = students.find(s => s.id === r.studentId);
+    const checkinTime = new Date(r.checkin);
+    const checkoutTime = r.checkout ? new Date(r.checkout) : null;
+    const duration = checkoutTime ? checkoutTime - checkinTime : null;
+    if (duration) totalMs += duration;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${student ? student.name : '(eliminado)'}</td>
+      <td>${r.date}</td>
+      <td>${checkinTime.toLocaleTimeString()}</td>
+      <td>${checkoutTime ? checkoutTime.toLocaleTimeString() : '—'}</td>
+      <td>${duration ? formatDuration(duration) : 'En curso'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const currentlyIn = students.filter(s => isCheckedIn(s.id)).length;
+  document.getElementById('stat-grid').innerHTML = `
+    <div class="stat-card"><div class="label">Alumnos registrados</div><div class="value">${students.length}</div></div>
+    <div class="stat-card"><div class="label">En el aula ahora</div><div class="value">${currentlyIn}</div></div>
+    <div class="stat-card"><div class="label">Registros totales</div><div class="value">${records.length}</div></div>
+    <div class="stat-card"><div class="label">Tiempo acumulado</div><div class="value">${formatDuration(totalMs)}</div></div>
+  `;
+}
+
+document.getElementById('filter-student').addEventListener('change', renderReports);
+
+renderStudents();
+renderReports();
+</script>
+</body>
+</html>
