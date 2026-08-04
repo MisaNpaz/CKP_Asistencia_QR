@@ -238,22 +238,37 @@
   <!-- ALUMNOS -->
   <div class="panel active" id="panel-alumnos">
     <div class="card">
+      <h2>Catálogo de cursos</h2>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="input-new-course" placeholder="Nombre del curso, ej. Matemáticas" style="flex:1;">
+        <button class="secondary" id="btn-add-course" style="white-space:nowrap;">Agregar curso</button>
+      </div>
+      <div id="course-catalog-list" style="margin-top:12px; display:flex; flex-wrap:wrap; gap:6px;"></div>
+    </div>
+
+    <div class="card">
       <h2>Registrar alumno</h2>
       <label>Nombre completo</label>
       <input type="text" id="input-name" placeholder="Nombre del alumno">
       <label>Edad</label>
-      <input type="number" id="input-age" placeholder="Edad">
-      <label>Cursos (separados por coma)</label>
-      <input type="text" id="input-courses" placeholder="Matemáticas, Historia, Inglés">
+      <select id="input-age"><option value="">Selecciona la edad</option></select>
+      <label>Cursos que toma (puedes elegir varios)</label>
+      <div id="course-checkboxes" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
+        <span class="empty" style="padding:8px 0;">Agrega cursos al catálogo primero.</span>
+      </div>
       <button class="primary" id="btn-add-student">Agregar alumno</button>
     </div>
 
     <div class="card">
       <h2>Lista de alumnos y sus códigos QR</h2>
-      <div style="display:flex; gap:8px; margin-bottom:4px;">
+      <div style="display:flex; gap:8px; margin-bottom:4px; align-items:center;">
         <input type="text" id="input-search" placeholder="Buscar alumno por nombre o curso..." style="flex:1;">
         <button class="secondary" id="btn-print-catalog" style="white-space:nowrap;">Imprimir catálogo</button>
       </div>
+      <label style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;">
+        <input type="checkbox" id="input-show-archived" style="width:auto;">
+        <span style="font-size:13px; color:var(--text-secondary);">Mostrar alumnos eliminados/archivados</span>
+      </label>
       <div id="student-list" class="student-grid"></div>
     </div>
   </div>
@@ -263,6 +278,12 @@
     <div class="card">
       <h2>Escanear código QR</h2>
       <div id="reader"></div>
+      <div id="course-picker" style="display:none; margin-top:14px; text-align:center;">
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">
+          <strong id="course-picker-name"></strong> toma varias materias. ¿Para cuál es este registro?
+        </p>
+        <div id="course-picker-options" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;"></div>
+      </div>
       <div id="scan-result"></div>
     </div>
   </div>
@@ -300,10 +321,11 @@
         </div>
       </div>
       <button class="secondary" id="btn-clear-filters" style="margin-top:10px;">Limpiar filtros</button>
+      <button class="secondary" id="btn-print-report" style="margin-top:10px;">Imprimir reporte (PDF)</button>
 
       <table>
         <thead>
-          <tr><th>Alumno</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr>
+          <tr><th>Alumno</th><th>Curso</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr>
         </thead>
         <tbody id="report-body"></tbody>
       </table>
@@ -332,12 +354,24 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const studentsCol = collection(db, 'students');
 const recordsCol = collection(db, 'records');
+const coursesCol = collection(db, 'courses');
 
 let students = [];
 let records = [];
+let courses = [];
 let html5QrCode = null;
+let pendingScanStudent = null; // alumno en espera de que se elija curso
 
 function uid() { return 'STU-' + Math.random().toString(36).slice(2, 9).toUpperCase(); }
+
+// Catálogo fijo de edades (evita errores de captura por texto libre)
+const ageOptions = document.getElementById('input-age');
+for (let a = 2; a <= 25; a++) {
+  const opt = document.createElement('option');
+  opt.value = a;
+  opt.textContent = a + ' años';
+  ageOptions.appendChild(opt);
+}
 
 // Escucha en tiempo real: cualquier cambio desde cualquier dispositivo se refleja aquí
 onSnapshot(studentsCol, (snapshot) => {
@@ -355,25 +389,80 @@ onSnapshot(recordsCol, (snapshot) => {
   renderReports();
 }, (err) => console.error(err));
 
+onSnapshot(coursesCol, (snapshot) => {
+  courses = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name));
+  renderCourseCatalog();
+  renderCourseCheckboxes();
+}, (err) => console.error(err));
+
 function isCheckedIn(studentId) {
   const open = records.filter(r => r.studentId === studentId && !r.checkout);
   return open.length > 0;
 }
 
+function renderCourseCatalog() {
+  const list = document.getElementById('course-catalog-list');
+  if (courses.length === 0) {
+    list.innerHTML = '<span class="empty" style="padding:4px 0;">Aún no hay cursos en el catálogo.</span>';
+    return;
+  }
+  list.innerHTML = courses.map(c => `
+    <span class="badge in" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px;">
+      ${c.name}
+      <button onclick="deleteCourse('${c.id}')" style="border:none; background:none; cursor:pointer; color:var(--danger); font-weight:bold; padding:0;" title="Eliminar curso">×</button>
+    </span>
+  `).join('');
+}
+
+function renderCourseCheckboxes() {
+  const container = document.getElementById('course-checkboxes');
+  if (courses.length === 0) {
+    container.innerHTML = '<span class="empty" style="padding:8px 0;">Agrega cursos al catálogo primero.</span>';
+    return;
+  }
+  container.innerHTML = courses.map(c => `
+    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:normal; margin:0; cursor:pointer;">
+      <input type="checkbox" value="${c.name}" class="course-check" style="width:auto;"> ${c.name}
+    </label>
+  `).join('');
+}
+
+document.getElementById('btn-add-course').addEventListener('click', async () => {
+  const input = document.getElementById('input-new-course');
+  const name = input.value.trim();
+  if (!name) return;
+  if (courses.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    alert('Ese curso ya existe en el catálogo.');
+    return;
+  }
+  await addDoc(coursesCol, { name });
+  input.value = '';
+});
+
+async function deleteCourse(id) {
+  await deleteDoc(doc(db, 'courses', id));
+}
+window.deleteCourse = deleteCourse;
+
 function renderStudents() {
   const list = document.getElementById('student-list');
   const filterSelect = document.getElementById('filter-student');
-  document.getElementById('student-count').textContent = students.length + (students.length === 1 ? ' alumno' : ' alumnos');
-  filterSelect.innerHTML = '<option value="">Todos</option>' + students.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  const activeStudents = students.filter(s => !s.archived);
+  document.getElementById('student-count').textContent = activeStudents.length + (activeStudents.length === 1 ? ' alumno' : ' alumnos');
+  // El filtro de reportes incluye a todos (incluidos archivados) para poder consultar su historial
+  filterSelect.innerHTML = '<option value="">Todos</option>' + students.slice().sort((a,b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}">${s.name}${s.archived ? ' (archivado)' : ''}</option>`).join('');
+
+  const showArchived = document.getElementById('input-show-archived').checked;
+  const baseList = showArchived ? students : activeStudents;
 
   const searchInput = document.getElementById('input-search');
   const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
   const visibleStudents = query
-    ? students.filter(s => s.name.toLowerCase().includes(query) || (s.courses || []).join(' ').toLowerCase().includes(query))
-    : students;
+    ? baseList.filter(s => s.name.toLowerCase().includes(query) || (s.courses || []).join(' ').toLowerCase().includes(query))
+    : baseList;
 
-  if (students.length === 0) {
-    list.innerHTML = '<div class="empty">Aún no hay alumnos registrados.</div>';
+  if (baseList.length === 0) {
+    list.innerHTML = `<div class="empty">${showArchived ? 'No hay alumnos.' : 'Aún no hay alumnos registrados.'}</div>`;
     return;
   }
   if (visibleStudents.length === 0) {
@@ -385,15 +474,22 @@ function renderStudents() {
   visibleStudents.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(s => {
     const div = document.createElement('div');
     div.className = 'student-card';
+    if (s.archived) div.style.opacity = '0.6';
     const checkedIn = isCheckedIn(s.id);
     div.innerHTML = `
       <div class="qr-box" id="qr-${s.id}"></div>
       <div class="name">${s.name}</div>
       <div class="meta">${s.age ? s.age + ' años · ' : ''}${(s.courses || []).join(', ')}</div>
-      <span class="badge ${checkedIn ? 'in' : 'out'}">${checkedIn ? 'En el aula' : 'Fuera'}</span>
+      ${s.archived
+        ? `<span class="badge out">Archivado</span>`
+        : `<span class="badge ${checkedIn ? 'in' : 'out'}">${checkedIn ? 'En el aula' : 'Fuera'}</span>`
+      }
       <div class="row-actions" id="actions-${s.id}">
-        <button class="secondary print-btn" onclick="printQr('${s.id}')">Imprimir</button>
-        <button class="secondary print-btn" onclick="askRemoveStudent('${s.id}')">Eliminar</button>
+        ${s.archived
+          ? `<button class="secondary print-btn" onclick="restoreStudent('${s.id}')">Restaurar</button>`
+          : `<button class="secondary print-btn" onclick="printQr('${s.id}')">Imprimir</button>
+             <button class="secondary print-btn" onclick="askRemoveStudent('${s.id}')">Archivar</button>`
+        }
       </div>
     `;
     list.appendChild(div);
@@ -409,15 +505,19 @@ function askRemoveStudent(id) {
   const actionsDiv = document.getElementById('actions-' + id);
   if (!actionsDiv) return;
   actionsDiv.innerHTML = `
-    <span style="font-size:12px; color:var(--danger);">¿Eliminar?</span>
-    <button class="secondary print-btn" style="color:var(--danger); border-color:var(--danger);" onclick="removeStudent('${id}')">Sí, eliminar</button>
+    <span style="font-size:12px; color:var(--danger);">¿Archivar? (se conserva su historial)</span>
+    <button class="secondary print-btn" style="color:var(--danger); border-color:var(--danger);" onclick="removeStudent('${id}')">Sí, archivar</button>
     <button class="secondary print-btn" onclick="renderStudents()">Cancelar</button>
   `;
 }
 
 async function removeStudent(id) {
-  await deleteDoc(doc(db, 'students', id));
-  // onSnapshot actualiza la lista automáticamente
+  await updateDoc(doc(db, 'students', id), { archived: true });
+  // Se conserva el registro para mantener su historial en reportes; solo se oculta de la lista activa
+}
+
+async function restoreStudent(id) {
+  await updateDoc(doc(db, 'students', id), { archived: false });
 }
 
 function printQr(id) {
@@ -439,19 +539,19 @@ function printQr(id) {
 
 document.getElementById('btn-add-student').addEventListener('click', async () => {
   const name = document.getElementById('input-name').value.trim();
-  const age = document.getElementById('input-age').value.trim();
-  const coursesRaw = document.getElementById('input-courses').value.trim();
+  const age = document.getElementById('input-age').value;
+  const courseChecks = Array.from(document.querySelectorAll('.course-check:checked')).map(cb => cb.value);
   if (!name) { alert('Ingresa el nombre del alumno.'); return; }
-  const courses = coursesRaw ? coursesRaw.split(',').map(c => c.trim()).filter(Boolean) : [];
+  if (courseChecks.length === 0) { alert('Selecciona al menos un curso para el alumno.'); return; }
   const id = uid();
   const btn = document.getElementById('btn-add-student');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    await setDoc(doc(db, 'students', id), { name, age, courses });
+    await setDoc(doc(db, 'students', id), { name, age, courses: courseChecks, archived: false });
     document.getElementById('input-name').value = '';
     document.getElementById('input-age').value = '';
-    document.getElementById('input-courses').value = '';
+    document.querySelectorAll('.course-check:checked').forEach(cb => cb.checked = false);
   } catch (err) {
     alert('No se pudo guardar el alumno: ' + err.message);
   }
@@ -496,9 +596,11 @@ let lastScanTime = 0;
 async function onScanSuccess(decodedText) {
   const now = Date.now();
   if (now - lastScanTime < 2500) return;
-  lastScanTime = now;
 
-  const student = students.find(s => s.id === decodedText);
+  // Si ya estamos esperando que el usuario elija un curso, ignorar nuevos escaneos
+  if (pendingScanStudent) return;
+
+  const student = students.find(s => s.id === decodedText && !s.archived);
   const resultBox = document.getElementById('scan-result');
   if (!student) {
     resultBox.className = 'error';
@@ -506,20 +608,64 @@ async function onScanSuccess(decodedText) {
     return;
   }
 
-  const openRecord = records.find(r => r.studentId === student.id && !r.checkout);
+  lastScanTime = now;
+  const studentCourses = student.courses || [];
+
+  if (studentCourses.length > 1) {
+    showCoursePicker(student);
+    return;
+  }
+
+  await registerAttendance(student, studentCourses[0] || null);
+}
+
+function showCoursePicker(student) {
+  pendingScanStudent = student;
+  const picker = document.getElementById('course-picker');
+  const nameEl = document.getElementById('course-picker-name');
+  const optionsEl = document.getElementById('course-picker-options');
+  nameEl.textContent = student.name;
+  optionsEl.innerHTML = (student.courses || []).map(c =>
+    `<button class="secondary" onclick="pickCourse('${c.replace(/'/g, "\\'")}')">${c}</button>`
+  ).join('');
+  picker.style.display = 'block';
+  document.getElementById('scan-result').className = '';
+  document.getElementById('scan-result').textContent = '';
+}
+
+async function pickCourse(course) {
+  const student = pendingScanStudent;
+  document.getElementById('course-picker').style.display = 'none';
+  pendingScanStudent = null;
+  lastScanTime = Date.now();
+  if (student) await registerAttendance(student, course);
+}
+window.pickCourse = pickCourse;
+
+async function registerAttendance(student, course) {
+  const resultBox = document.getElementById('scan-result');
+  const openRecord = records.find(r => r.studentId === student.id && r.course === (course || null) && !r.checkout);
   const nowDate = new Date();
   const dateStr = nowDate.toLocaleDateString();
   const timeStr = nowDate.toLocaleTimeString();
+  const courseLabel = course ? ` (${course})` : '';
 
   try {
     if (openRecord) {
       await updateDoc(doc(db, 'records', openRecord.recordId), { checkout: nowDate.toISOString() });
       resultBox.className = 'out';
-      resultBox.textContent = `Salida registrada: ${student.name} a las ${timeStr}`;
+      resultBox.textContent = `Salida registrada: ${student.name}${courseLabel} a las ${timeStr}`;
     } else {
-      await addDoc(recordsCol, { studentId: student.id, date: dateStr, checkin: nowDate.toISOString(), checkout: null });
+      await addDoc(recordsCol, {
+        studentId: student.id,
+        studentName: student.name,
+        course: course || null,
+        date: dateStr,
+        checkin: nowDate.toISOString(),
+        checkout: null
+      });
       resultBox.className = 'in';
-      resultBox.textContent = `Entrada registrada: ${student.name} a las ${timeStr}`;
+      resultBox.textContent = `Entrada registrada: ${student.name}${courseLabel} a las ${timeStr}`;
     }
   } catch (err) {
     resultBox.className = 'error';
@@ -534,31 +680,33 @@ function formatDuration(ms) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-function renderReports() {
+function getFilteredRecords() {
   const filterId = document.getElementById('filter-student').value;
   const filterCourse = document.getElementById('filter-course').value;
   const filterStatus = document.getElementById('filter-status').value;
   const dateFrom = document.getElementById('filter-date-from').value; // yyyy-mm-dd
   const dateTo = document.getElementById('filter-date-to').value;
-  const tbody = document.getElementById('report-body');
-
-  // Poblar el filtro de cursos dinámicamente a partir de los alumnos existentes
-  const courseSelect = document.getElementById('filter-course');
-  const allCourses = [...new Set(students.flatMap(s => s.courses || []))].sort();
-  const currentCourseValue = courseSelect.value;
-  courseSelect.innerHTML = '<option value="">Todos</option>' + allCourses.map(c => `<option value="${c}">${c}</option>`).join('');
-  courseSelect.value = allCourses.includes(currentCourseValue) ? currentCourseValue : '';
 
   let filtered = records.slice();
   if (filterId) filtered = filtered.filter(r => r.studentId === filterId);
-  if (filterCourse) filtered = filtered.filter(r => {
-    const student = students.find(s => s.id === r.studentId);
-    return student && (student.courses || []).includes(filterCourse);
-  });
+  if (filterCourse) filtered = filtered.filter(r => r.course === filterCourse);
   if (filterStatus === 'in') filtered = filtered.filter(r => !r.checkout);
   if (filterStatus === 'out') filtered = filtered.filter(r => !!r.checkout);
   if (dateFrom) filtered = filtered.filter(r => toLocalDateInput(new Date(r.checkin)) >= dateFrom);
   if (dateTo) filtered = filtered.filter(r => toLocalDateInput(new Date(r.checkin)) <= dateTo);
+  return filtered;
+}
+
+function renderReports() {
+  const tbody = document.getElementById('report-body');
+
+  // Poblar el filtro de cursos con el catálogo real
+  const courseSelect = document.getElementById('filter-course');
+  const currentCourseValue = courseSelect.value;
+  courseSelect.innerHTML = '<option value="">Todos</option>' + courses.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+  courseSelect.value = courses.some(c => c.name === currentCourseValue) ? currentCourseValue : '';
+
+  const filtered = getFilteredRecords();
 
   tbody.innerHTML = '';
   document.getElementById('report-empty').style.display = filtered.length === 0 ? 'block' : 'none';
@@ -572,7 +720,8 @@ function renderReports() {
     if (duration) totalMs += duration;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${student ? student.name : '(eliminado)'}</td>
+      <td>${student ? student.name + (student.archived ? ' (archivado)' : '') : (r.studentName || '(alumno eliminado)')}</td>
+      <td>${r.course || '—'}</td>
       <td>${r.date}</td>
       <td>${checkinTime.toLocaleTimeString()}</td>
       <td>${checkoutTime ? checkoutTime.toLocaleTimeString() : '—'}</td>
@@ -581,9 +730,9 @@ function renderReports() {
     tbody.appendChild(tr);
   });
 
-  const currentlyIn = students.filter(s => isCheckedIn(s.id)).length;
+  const currentlyIn = students.filter(s => !s.archived && isCheckedIn(s.id)).length;
   document.getElementById('stat-grid').innerHTML = `
-    <div class="stat-card"><div class="label">Alumnos registrados</div><div class="value">${students.length}</div></div>
+    <div class="stat-card"><div class="label">Alumnos registrados</div><div class="value">${students.filter(s => !s.archived).length}</div></div>
     <div class="stat-card"><div class="label">En el aula ahora</div><div class="value">${currentlyIn}</div></div>
     <div class="stat-card"><div class="label">Registros filtrados</div><div class="value">${filtered.length}</div></div>
     <div class="stat-card"><div class="label">Tiempo acumulado (filtro)</div><div class="value">${formatDuration(totalMs)}</div></div>
@@ -649,9 +798,69 @@ document.getElementById('btn-print-catalog').addEventListener('click', () => {
   `);
 });
 
+document.getElementById('input-show-archived').addEventListener('change', renderStudents);
+
+document.getElementById('btn-print-report').addEventListener('click', () => {
+  const filtered = getFilteredRecords();
+  if (filtered.length === 0) { alert('No hay registros que coincidan con los filtros actuales.'); return; }
+
+  const studentName = document.getElementById('filter-student').selectedOptions[0].textContent;
+  const courseName = document.getElementById('filter-course').selectedOptions[0].textContent;
+  const statusName = document.getElementById('filter-status').selectedOptions[0].textContent;
+  const dateFrom = document.getElementById('filter-date-from').value || '—';
+  const dateTo = document.getElementById('filter-date-to').value || '—';
+  const summaryHtml = document.getElementById('stat-grid').innerHTML;
+
+  let totalMs = 0;
+  const rows = filtered.slice().reverse().map(r => {
+    const student = students.find(s => s.id === r.studentId);
+    const checkinTime = new Date(r.checkin);
+    const checkoutTime = r.checkout ? new Date(r.checkout) : null;
+    const duration = checkoutTime ? checkoutTime - checkinTime : null;
+    if (duration) totalMs += duration;
+    return `<tr>
+      <td>${student ? student.name : (r.studentName || '(alumno eliminado)')}</td>
+      <td>${r.course || '—'}</td>
+      <td>${r.date}</td>
+      <td>${checkinTime.toLocaleTimeString()}</td>
+      <td>${checkoutTime ? checkoutTime.toLocaleTimeString() : '—'}</td>
+      <td>${duration ? formatDuration(duration) : 'En curso'}</td>
+    </tr>`;
+  }).join('');
+
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>Reporte de asistencia</title>
+    <style>
+      body { font-family: sans-serif; padding: 24px; color: #222; }
+      h2 { margin-bottom: 4px; }
+      .filters { font-size: 12px; color: #555; margin-bottom: 16px; }
+      .summary { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+      .summary-card { background:#f0efe9; border-radius:8px; padding:10px 14px; font-size:12px; }
+      table { width:100%; border-collapse: collapse; font-size: 12px; }
+      th, td { text-align:left; border-bottom:1px solid #ddd; padding:6px 8px; }
+      th { background:#f4f5f2; }
+    </style>
+    </head>
+    <body>
+      <h2>Reporte de asistencia</h2>
+      <div class="filters">
+        Alumno: ${studentName} · Curso: ${courseName} · Estatus: ${statusName} · Del ${dateFrom} al ${dateTo} · Generado: ${new Date().toLocaleString()}
+      </div>
+      <div class="summary">${summaryHtml.replace(/class="stat-card"/g, 'class="summary-card"').replace(/class="label"/g, '').replace(/class="value"/g, '')}</div>
+      <table>
+        <thead><tr><th>Alumno</th><th>Curso</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <script>setTimeout(() => window.print(), 400);<\/script>
+    </body></html>
+  `);
+});
+
 window.printQr = printQr;
 window.askRemoveStudent = askRemoveStudent;
 window.removeStudent = removeStudent;
+window.restoreStudent = restoreStudent;
 window.renderStudents = renderStudents;
 </script>
 </body>
