@@ -272,8 +272,35 @@
     <div class="card">
       <h2>Resumen</h2>
       <div class="stat-grid" id="stat-grid"></div>
-      <label>Filtrar por alumno</label>
-      <select id="filter-student"><option value="">Todos</option></select>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px;">
+        <div>
+          <label>Alumno</label>
+          <select id="filter-student"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label>Curso</label>
+          <select id="filter-course"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label>Estatus</label>
+          <select id="filter-status">
+            <option value="">Todos</option>
+            <option value="in">En curso (sin salida)</option>
+            <option value="out">Completados</option>
+          </select>
+        </div>
+        <div>
+          <label>Desde</label>
+          <input type="date" id="filter-date-from">
+        </div>
+        <div>
+          <label>Hasta</label>
+          <input type="date" id="filter-date-to">
+        </div>
+      </div>
+      <button class="secondary" id="btn-clear-filters" style="margin-top:10px;">Limpiar filtros</button>
+
       <table>
         <thead>
           <tr><th>Alumno</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr>
@@ -509,8 +536,29 @@ function formatDuration(ms) {
 
 function renderReports() {
   const filterId = document.getElementById('filter-student').value;
+  const filterCourse = document.getElementById('filter-course').value;
+  const filterStatus = document.getElementById('filter-status').value;
+  const dateFrom = document.getElementById('filter-date-from').value; // yyyy-mm-dd
+  const dateTo = document.getElementById('filter-date-to').value;
   const tbody = document.getElementById('report-body');
-  const filtered = filterId ? records.filter(r => r.studentId === filterId) : records;
+
+  // Poblar el filtro de cursos dinámicamente a partir de los alumnos existentes
+  const courseSelect = document.getElementById('filter-course');
+  const allCourses = [...new Set(students.flatMap(s => s.courses || []))].sort();
+  const currentCourseValue = courseSelect.value;
+  courseSelect.innerHTML = '<option value="">Todos</option>' + allCourses.map(c => `<option value="${c}">${c}</option>`).join('');
+  courseSelect.value = allCourses.includes(currentCourseValue) ? currentCourseValue : '';
+
+  let filtered = records.slice();
+  if (filterId) filtered = filtered.filter(r => r.studentId === filterId);
+  if (filterCourse) filtered = filtered.filter(r => {
+    const student = students.find(s => s.id === r.studentId);
+    return student && (student.courses || []).includes(filterCourse);
+  });
+  if (filterStatus === 'in') filtered = filtered.filter(r => !r.checkout);
+  if (filterStatus === 'out') filtered = filtered.filter(r => !!r.checkout);
+  if (dateFrom) filtered = filtered.filter(r => toLocalDateInput(new Date(r.checkin)) >= dateFrom);
+  if (dateTo) filtered = filtered.filter(r => toLocalDateInput(new Date(r.checkin)) <= dateTo);
 
   tbody.innerHTML = '';
   document.getElementById('report-empty').style.display = filtered.length === 0 ? 'block' : 'none';
@@ -537,12 +585,31 @@ function renderReports() {
   document.getElementById('stat-grid').innerHTML = `
     <div class="stat-card"><div class="label">Alumnos registrados</div><div class="value">${students.length}</div></div>
     <div class="stat-card"><div class="label">En el aula ahora</div><div class="value">${currentlyIn}</div></div>
-    <div class="stat-card"><div class="label">Registros totales</div><div class="value">${records.length}</div></div>
-    <div class="stat-card"><div class="label">Tiempo acumulado</div><div class="value">${formatDuration(totalMs)}</div></div>
+    <div class="stat-card"><div class="label">Registros filtrados</div><div class="value">${filtered.length}</div></div>
+    <div class="stat-card"><div class="label">Tiempo acumulado (filtro)</div><div class="value">${formatDuration(totalMs)}</div></div>
   `;
 }
 
+function toLocalDateInput(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 document.getElementById('filter-student').addEventListener('change', renderReports);
+document.getElementById('filter-course').addEventListener('change', renderReports);
+document.getElementById('filter-status').addEventListener('change', renderReports);
+document.getElementById('filter-date-from').addEventListener('change', renderReports);
+document.getElementById('filter-date-to').addEventListener('change', renderReports);
+document.getElementById('btn-clear-filters').addEventListener('click', () => {
+  document.getElementById('filter-student').value = '';
+  document.getElementById('filter-course').value = '';
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  renderReports();
+});
 
 document.getElementById('input-search').addEventListener('input', renderStudents);
 
