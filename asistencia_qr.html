@@ -225,7 +225,7 @@
 
 <header>
   <h1>Control de asistencia con QR</h1>
-  <span style="font-size:12px; color:#6d6b62;" id="student-count">0 alumnos</span>
+  <span style="font-size:12px; color:#6d6b62;" id="student-count">Conectando...</span>
 </header>
 
 <div class="container">
@@ -281,14 +281,48 @@
   </div>
 </div>
 
-<script>
-let students = JSON.parse(localStorage.getItem('qr_students') || '[]');
-let records = JSON.parse(localStorage.getItem('qr_records') || '[]');
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getFirestore, collection, doc, setDoc, deleteDoc,
+  addDoc, updateDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBtknYhSzzMYJ21vffJmIyV-rchTxdDaak",
+  authDomain: "ckp-asistencia-qr.firebaseapp.com",
+  projectId: "ckp-asistencia-qr",
+  storageBucket: "ckp-asistencia-qr.firebasestorage.app",
+  messagingSenderId: "570471221314",
+  appId: "1:570471221314:web:0c2e58deedaf8b531345db"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const studentsCol = collection(db, 'students');
+const recordsCol = collection(db, 'records');
+
+let students = [];
+let records = [];
 let html5QrCode = null;
 
-function saveStudents() { localStorage.setItem('qr_students', JSON.stringify(students)); }
-function saveRecords() { localStorage.setItem('qr_records', JSON.stringify(records)); }
 function uid() { return 'STU-' + Math.random().toString(36).slice(2, 9).toUpperCase(); }
+
+// Escucha en tiempo real: cualquier cambio desde cualquier dispositivo se refleja aquí
+onSnapshot(studentsCol, (snapshot) => {
+  students = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderStudents();
+  renderReports();
+}, (err) => {
+  document.getElementById('student-count').textContent = 'Error de conexión';
+  console.error(err);
+});
+
+onSnapshot(recordsCol, (snapshot) => {
+  records = snapshot.docs.map(d => ({ recordId: d.id, ...d.data() }));
+  renderStudents();
+  renderReports();
+}, (err) => console.error(err));
 
 function isCheckedIn(studentId) {
   const open = records.filter(r => r.studentId === studentId && !r.checkout);
@@ -340,11 +374,9 @@ function askRemoveStudent(id) {
   `;
 }
 
-function removeStudent(id) {
-  students = students.filter(s => s.id !== id);
-  saveStudents();
-  renderStudents();
-  renderReports();
+async function removeStudent(id) {
+  await deleteDoc(doc(db, 'students', id));
+  // onSnapshot actualiza la lista automáticamente
 }
 
 function printQr(id) {
@@ -364,19 +396,26 @@ function printQr(id) {
   `);
 }
 
-document.getElementById('btn-add-student').addEventListener('click', () => {
+document.getElementById('btn-add-student').addEventListener('click', async () => {
   const name = document.getElementById('input-name').value.trim();
   const age = document.getElementById('input-age').value.trim();
   const coursesRaw = document.getElementById('input-courses').value.trim();
   if (!name) { alert('Ingresa el nombre del alumno.'); return; }
   const courses = coursesRaw ? coursesRaw.split(',').map(c => c.trim()).filter(Boolean) : [];
-  students.push({ id: uid(), name, age, courses });
-  saveStudents();
-  document.getElementById('input-name').value = '';
-  document.getElementById('input-age').value = '';
-  document.getElementById('input-courses').value = '';
-  renderStudents();
-  renderReports();
+  const id = uid();
+  const btn = document.getElementById('btn-add-student');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  try {
+    await setDoc(doc(db, 'students', id), { name, age, courses });
+    document.getElementById('input-name').value = '';
+    document.getElementById('input-age').value = '';
+    document.getElementById('input-courses').value = '';
+  } catch (err) {
+    alert('No se pudo guardar el alumno: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Agregar alumno';
 });
 
 // TABS
@@ -413,7 +452,7 @@ function stopScanner() {
 }
 
 let lastScanTime = 0;
-function onScanSuccess(decodedText) {
+async function onScanSuccess(decodedText) {
   const now = Date.now();
   if (now - lastScanTime < 2500) return;
   lastScanTime = now;
@@ -431,18 +470,20 @@ function onScanSuccess(decodedText) {
   const dateStr = nowDate.toLocaleDateString();
   const timeStr = nowDate.toLocaleTimeString();
 
-  if (openRecord) {
-    openRecord.checkout = nowDate.toISOString();
-    saveRecords();
-    resultBox.className = 'out';
-    resultBox.textContent = `Salida registrada: ${student.name} a las ${timeStr}`;
-  } else {
-    records.push({ studentId: student.id, date: dateStr, checkin: nowDate.toISOString(), checkout: null });
-    saveRecords();
-    resultBox.className = 'in';
-    resultBox.textContent = `Entrada registrada: ${student.name} a las ${timeStr}`;
+  try {
+    if (openRecord) {
+      await updateDoc(doc(db, 'records', openRecord.recordId), { checkout: nowDate.toISOString() });
+      resultBox.className = 'out';
+      resultBox.textContent = `Salida registrada: ${student.name} a las ${timeStr}`;
+    } else {
+      await addDoc(recordsCol, { studentId: student.id, date: dateStr, checkin: nowDate.toISOString(), checkout: null });
+      resultBox.className = 'in';
+      resultBox.textContent = `Entrada registrada: ${student.name} a las ${timeStr}`;
+    }
+  } catch (err) {
+    resultBox.className = 'error';
+    resultBox.textContent = 'Error al registrar: ' + err.message;
   }
-  renderStudents();
 }
 
 function formatDuration(ms) {
@@ -489,8 +530,10 @@ function renderReports() {
 
 document.getElementById('filter-student').addEventListener('change', renderReports);
 
-renderStudents();
-renderReports();
+window.printQr = printQr;
+window.askRemoveStudent = askRemoveStudent;
+window.removeStudent = removeStudent;
+window.renderStudents = renderStudents;
 </script>
 </body>
 </html>
