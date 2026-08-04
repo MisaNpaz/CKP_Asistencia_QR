@@ -91,7 +91,7 @@
     margin-bottom: 4px;
     margin-top: 10px;
   }
-  input[type=text], input[type=number] {
+  input[type=text], input[type=number], input[type=password], input[type=date] {
     width: 100%;
     padding: 9px 10px;
     border: 1px solid var(--border);
@@ -223,16 +223,35 @@
 </head>
 <body>
 
+<!-- LOGIN -->
+<div id="login-screen" style="display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px;">
+  <div class="card" style="max-width:340px; width:100%;">
+    <h2 style="text-align:center;">Control de asistencia con QR</h2>
+    <label>Correo</label>
+    <input type="text" id="login-email" placeholder="correo@ejemplo.com">
+    <label>Contraseña</label>
+    <input type="password" id="login-password" placeholder="Contraseña">
+    <button class="primary" id="btn-login" style="width:100%;">Iniciar sesión</button>
+    <div id="login-error" style="color:var(--danger); font-size:13px; text-align:center; margin-top:10px; display:none;"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app-screen" style="display:none;">
 <header>
   <h1>Control de asistencia con QR</h1>
-  <span style="font-size:12px; color:#6d6b62;" id="student-count">Conectando...</span>
+  <div style="display:flex; align-items:center; gap:12px;">
+    <span style="font-size:12px; color:#6d6b62;" id="student-count">Conectando...</span>
+    <span id="user-email-label" style="font-size:12px; color:#6d6b62;"></span>
+    <button class="secondary" id="btn-logout" style="padding:5px 10px; font-size:12px;">Salir</button>
+  </div>
 </header>
 
 <div class="container">
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="alumnos">Alumnos</button>
+    <button class="tab-btn active" data-tab="alumnos" id="tab-btn-alumnos">Alumnos</button>
     <button class="tab-btn" data-tab="escanear">Escanear</button>
-    <button class="tab-btn" data-tab="reportes">Reportes</button>
+    <button class="tab-btn" data-tab="reportes" id="tab-btn-reportes">Reportes</button>
   </nav>
 
   <!-- ALUMNOS -->
@@ -333,13 +352,17 @@
     </div>
   </div>
 </div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getFirestore, collection, doc, setDoc, deleteDoc,
+  getFirestore, collection, doc, setDoc, deleteDoc, getDoc,
   addDoc, updateDoc, onSnapshot
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBtknYhSzzMYJ21vffJmIyV-rchTxdDaak",
@@ -352,6 +375,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
 const studentsCol = collection(db, 'students');
 const recordsCol = collection(db, 'records');
 const coursesCol = collection(db, 'courses');
@@ -361,39 +385,114 @@ let records = [];
 let courses = [];
 let html5QrCode = null;
 let pendingScanStudent = null; // alumno en espera de que se elija curso
+let currentRole = null; // 'admin' | 'operador'
+let unsubscribers = [];
 
 function uid() { return 'STU-' + Math.random().toString(36).slice(2, 9).toUpperCase(); }
 
 // Catálogo fijo de edades (evita errores de captura por texto libre)
 const ageOptions = document.getElementById('input-age');
-for (let a = 2; a <= 99; a++) {
+for (let a = 2; a <= 25; a++) {
   const opt = document.createElement('option');
   opt.value = a;
   opt.textContent = a + ' años';
   ageOptions.appendChild(opt);
 }
 
-// Escucha en tiempo real: cualquier cambio desde cualquier dispositivo se refleja aquí
-onSnapshot(studentsCol, (snapshot) => {
-  students = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-  renderStudents();
-  renderReports();
-}, (err) => {
-  document.getElementById('student-count').textContent = 'Error de conexión';
-  console.error(err);
+// ---------- LOGIN ----------
+document.getElementById('btn-login').addEventListener('click', doLogin);
+document.getElementById('login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorBox = document.getElementById('login-error');
+  const btn = document.getElementById('btn-login');
+  errorBox.style.display = 'none';
+  if (!email || !password) { errorBox.textContent = 'Ingresa correo y contraseña.'; errorBox.style.display = 'block'; return; }
+  btn.disabled = true;
+  btn.textContent = 'Ingresando...';
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged se encarga del resto
+  } catch (err) {
+    errorBox.textContent = 'Correo o contraseña incorrectos.';
+    errorBox.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Iniciar sesión';
+}
+
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  unsubscribers.forEach(u => u());
+  unsubscribers = [];
+  await signOut(auth);
 });
 
-onSnapshot(recordsCol, (snapshot) => {
-  records = snapshot.docs.map(d => ({ recordId: d.id, ...d.data() }));
-  renderStudents();
-  renderReports();
-}, (err) => console.error(err));
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    try {
+      const roleSnap = await getDoc(doc(db, 'userRoles', user.uid));
+      currentRole = roleSnap.exists() ? roleSnap.data().role : null;
+    } catch (err) {
+      currentRole = null;
+    }
+    if (!currentRole) {
+      document.getElementById('login-error').textContent = 'Tu cuenta no tiene un rol asignado. Contacta al administrador.';
+      document.getElementById('login-error').style.display = 'block';
+      await signOut(auth);
+      return;
+    }
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+    document.getElementById('user-email-label').textContent = user.email + ' · ' + (currentRole === 'admin' ? 'Administrador' : 'Operador');
+    applyRolePermissions();
+    startRealtimeListeners();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+  }
+});
 
-onSnapshot(coursesCol, (snapshot) => {
-  courses = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name));
-  renderCourseCatalog();
-  renderCourseCheckboxes();
-}, (err) => console.error(err));
+function applyRolePermissions() {
+  const isAdmin = currentRole === 'admin';
+  document.getElementById('tab-btn-alumnos').style.display = isAdmin ? '' : 'none';
+  document.getElementById('tab-btn-reportes').style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) {
+    // El operador solo puede escanear
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="escanear"]').classList.add('active');
+    document.getElementById('panel-escanear').classList.add('active');
+    startScanner();
+  }
+}
+
+function startRealtimeListeners() {
+  // Escucha en tiempo real: cualquier cambio desde cualquier dispositivo se refleja aquí
+  unsubscribers.push(onSnapshot(studentsCol, (snapshot) => {
+    students = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderStudents();
+    renderReports();
+  }, (err) => {
+    document.getElementById('student-count').textContent = 'Error de conexión';
+    console.error(err);
+  }));
+
+  unsubscribers.push(onSnapshot(recordsCol, (snapshot) => {
+    records = snapshot.docs.map(d => ({ recordId: d.id, ...d.data() }));
+    renderStudents();
+    renderReports();
+  }, (err) => console.error(err)));
+
+  unsubscribers.push(onSnapshot(coursesCol, (snapshot) => {
+    courses = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name));
+    renderCourseCatalog();
+    renderCourseCheckboxes();
+  }, (err) => console.error(err)));
+}
 
 function isCheckedIn(studentId) {
   const open = records.filter(r => r.studentId === studentId && !r.checkout);
