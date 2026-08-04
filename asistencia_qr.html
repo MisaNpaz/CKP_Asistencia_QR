@@ -250,6 +250,10 @@
 
     <div class="card">
       <h2>Lista de alumnos y sus códigos QR</h2>
+      <div style="display:flex; gap:8px; margin-bottom:4px;">
+        <input type="text" id="input-search" placeholder="Buscar alumno por nombre o curso..." style="flex:1;">
+        <button class="secondary" id="btn-print-catalog" style="white-space:nowrap;">Imprimir catálogo</button>
+      </div>
       <div id="student-list" class="student-grid"></div>
     </div>
   </div>
@@ -335,13 +339,23 @@ function renderStudents() {
   document.getElementById('student-count').textContent = students.length + (students.length === 1 ? ' alumno' : ' alumnos');
   filterSelect.innerHTML = '<option value="">Todos</option>' + students.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
+  const searchInput = document.getElementById('input-search');
+  const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+  const visibleStudents = query
+    ? students.filter(s => s.name.toLowerCase().includes(query) || (s.courses || []).join(' ').toLowerCase().includes(query))
+    : students;
+
   if (students.length === 0) {
     list.innerHTML = '<div class="empty">Aún no hay alumnos registrados.</div>';
     return;
   }
+  if (visibleStudents.length === 0) {
+    list.innerHTML = '<div class="empty">Ningún alumno coincide con tu búsqueda.</div>';
+    return;
+  }
 
   list.innerHTML = '';
-  students.forEach(s => {
+  visibleStudents.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(s => {
     const div = document.createElement('div');
     div.className = 'student-card';
     const checkedIn = isCheckedIn(s.id);
@@ -529,6 +543,44 @@ function renderReports() {
 }
 
 document.getElementById('filter-student').addEventListener('change', renderReports);
+
+document.getElementById('input-search').addEventListener('input', renderStudents);
+
+document.getElementById('btn-print-catalog').addEventListener('click', () => {
+  if (students.length === 0) { alert('Aún no hay alumnos registrados.'); return; }
+  const sorted = students.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const w = window.open('', '_blank');
+  const cards = sorted.map(s => `
+    <div class="cat-card">
+      <div class="cat-qr" id="cat-${s.id}"></div>
+      <div class="cat-name">${s.name}</div>
+      <div class="cat-meta">${(s.courses || []).join(', ')}</div>
+    </div>
+  `).join('');
+  const scripts = sorted.map(s => `new QRCode(document.getElementById('cat-${s.id}'), { text: "${s.id}", width: 110, height: 110 });`).join('\n');
+  w.document.write(`
+    <html><head><title>Catálogo de alumnos</title>
+    <style>
+      body { font-family: sans-serif; padding: 20px; }
+      h2 { text-align:center; }
+      .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+      .cat-card { text-align: center; border: 1px solid #ddd; border-radius: 8px; padding: 10px; break-inside: avoid; }
+      .cat-qr { display: flex; justify-content: center; margin-bottom: 6px; }
+      .cat-name { font-weight: 600; font-size: 13px; }
+      .cat-meta { font-size: 11px; color: #666; }
+    </style>
+    </head>
+    <body>
+      <h2>Catálogo de alumnos</h2>
+      <div class="cat-grid">${cards}</div>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+      <script>
+        ${scripts}
+        setTimeout(() => window.print(), 500);
+      <\/script>
+    </body></html>
+  `);
+});
 
 window.printQr = printQr;
 window.askRemoveStudent = askRemoveStudent;
