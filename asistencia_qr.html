@@ -397,7 +397,7 @@ function uid() { return 'STU-' + Math.random().toString(36).slice(2, 9).toUpperC
 
 // Catálogo fijo de edades (evita errores de captura por texto libre)
 const ageOptions = document.getElementById('input-age');
-for (let a = 2; a <= 25; a++) {
+for (let a = 2; a <= 99; a++) {
   const opt = document.createElement('option');
   opt.value = a;
   opt.textContent = a + ' años';
