@@ -189,6 +189,9 @@
     border-bottom: 1px solid var(--border);
   }
   th { color: var(--text-secondary); font-weight: 500; }
+  th.sortable-th { cursor: pointer; user-select: none; white-space: nowrap; }
+  th.sortable-th:hover { color: var(--accent); }
+  .sort-arrow { font-size: 10px; }
   .stat-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -349,7 +352,14 @@
 
       <table>
         <thead>
-          <tr><th>Alumno</th><th>Curso</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr>
+          <tr>
+            <th class="sortable-th" data-field="name">Alumno <span class="sort-arrow" id="sort-arrow-name"></span></th>
+            <th class="sortable-th" data-field="course">Curso <span class="sort-arrow" id="sort-arrow-course"></span></th>
+            <th class="sortable-th" data-field="date">Fecha <span class="sort-arrow" id="sort-arrow-date"></span></th>
+            <th class="sortable-th" data-field="checkin">Entrada <span class="sort-arrow" id="sort-arrow-checkin"></span></th>
+            <th class="sortable-th" data-field="checkout">Salida <span class="sort-arrow" id="sort-arrow-checkout"></span></th>
+            <th class="sortable-th" data-field="duration">Tiempo <span class="sort-arrow" id="sort-arrow-duration"></span></th>
+          </tr>
         </thead>
         <tbody id="report-body"></tbody>
       </table>
@@ -901,6 +911,53 @@ window.reviewManualCheckout = reviewManualCheckout;
 window.confirmManualCheckout = confirmManualCheckout;
 window.renderOpenRecords = renderOpenRecords;
 
+let sortField = 'checkin';
+let sortDirection = 'asc'; // orden por defecto: en el orden en que entran al aula
+
+function getSortValue(r, field) {
+  const student = students.find(s => s.id === r.studentId);
+  const name = student ? student.name : (r.studentName || '');
+  switch (field) {
+    case 'name': return name.toLowerCase();
+    case 'course': return (r.course || '').toLowerCase();
+    case 'date': return new Date(r.checkin).getTime();
+    case 'checkin': return new Date(r.checkin).getTime();
+    case 'checkout': return r.checkout ? new Date(r.checkout).getTime() : Infinity; // sin salida al final
+    case 'duration': return r.checkout ? (new Date(r.checkout) - new Date(r.checkin)) : Infinity; // en curso al final
+    default: return 0;
+  }
+}
+
+function sortRecords(list) {
+  const sorted = list.slice().sort((a, b) => {
+    const va = getSortValue(a, sortField);
+    const vb = getSortValue(b, sortField);
+    if (va < vb) return sortDirection === 'asc' ? -1 : 1;
+    if (va > vb) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+  return sorted;
+}
+
+document.querySelectorAll('.sortable-th').forEach(th => {
+  th.addEventListener('click', () => {
+    const field = th.dataset.field;
+    if (sortField === field) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortField = field;
+      sortDirection = 'asc';
+    }
+    renderReports();
+  });
+});
+
+function updateSortArrows() {
+  document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+  const arrow = document.getElementById('sort-arrow-' + sortField);
+  if (arrow) arrow.textContent = sortDirection === 'asc' ? '▲' : '▼';
+}
+
 function getFilteredRecords() {
   const filterId = document.getElementById('filter-student').value;
   const filterCourse = document.getElementById('filter-course').value;
@@ -928,13 +985,14 @@ function renderReports() {
   courseSelect.innerHTML = '<option value="">Todos</option>' + courses.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
   courseSelect.value = courses.some(c => c.name === currentCourseValue) ? currentCourseValue : '';
 
-  const filtered = getFilteredRecords();
+  const filtered = sortRecords(getFilteredRecords());
+  updateSortArrows();
 
   tbody.innerHTML = '';
   document.getElementById('report-empty').style.display = filtered.length === 0 ? 'block' : 'none';
 
   let totalMs = 0;
-  filtered.slice().reverse().forEach(r => {
+  filtered.forEach(r => {
     const student = students.find(s => s.id === r.studentId);
     const checkinTime = new Date(r.checkin);
     const checkoutTime = r.checkout ? new Date(r.checkout) : null;
@@ -1016,7 +1074,7 @@ document.getElementById('btn-print-catalog').addEventListener('click', () => {
 document.getElementById('input-show-archived').addEventListener('change', renderStudents);
 
 document.getElementById('btn-print-report').addEventListener('click', () => {
-  const filtered = getFilteredRecords();
+  const filtered = sortRecords(getFilteredRecords());
   if (filtered.length === 0) { alert('No hay registros que coincidan con los filtros actuales.'); return; }
 
   const studentName = document.getElementById('filter-student').selectedOptions[0].textContent;
@@ -1027,7 +1085,7 @@ document.getElementById('btn-print-report').addEventListener('click', () => {
   const summaryHtml = document.getElementById('stat-grid').innerHTML;
 
   let totalMs = 0;
-  const rows = filtered.slice().reverse().map(r => {
+  const rows = filtered.map(r => {
     const student = students.find(s => s.id === r.studentId);
     const checkinTime = new Date(r.checkin);
     const checkoutTime = r.checkout ? new Date(r.checkout) : null;
