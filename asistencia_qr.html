@@ -159,6 +159,9 @@
   }
   .badge.in { background: var(--success-bg); color: var(--success); }
   .badge.out { background: #eee; color: var(--text-secondary); }
+  .badge.type-alumno { background: var(--accent-bg); color: var(--accent); }
+  .badge.type-profesor { background: #f1e6fa; color: #6b3fa0; }
+  .badge.type-personal { background: #fdf0dd; color: #a0631f; }
   #reader {
     width: 100%;
     max-width: 400px;
@@ -252,7 +255,7 @@
 
 <div class="container">
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="alumnos" id="tab-btn-alumnos">Alumnos</button>
+    <button class="tab-btn active" data-tab="alumnos" id="tab-btn-alumnos">Personas</button>
     <button class="tab-btn" data-tab="escanear">Escanear</button>
     <button class="tab-btn" data-tab="reportes" id="tab-btn-reportes">Reportes</button>
   </nav>
@@ -260,7 +263,7 @@
   <!-- ALUMNOS -->
   <div class="panel active" id="panel-alumnos">
     <div class="card">
-      <h2>Catálogo de cursos</h2>
+      <h2>Catálogo de cursos / materias</h2>
       <div style="display:flex; gap:8px;">
         <input type="text" id="input-new-course" placeholder="Nombre del curso, ej. Matemáticas" style="flex:1;">
         <button class="secondary" id="btn-add-course" style="white-space:nowrap;">Agregar curso</button>
@@ -269,31 +272,44 @@
     </div>
 
     <div class="card">
-      <h2>Registrar alumno</h2>
+      <h2>Registrar persona</h2>
+      <label>Tipo de persona</label>
+      <select id="input-person-type">
+        <option value="alumno">Alumno</option>
+        <option value="profesor">Profesor</option>
+        <option value="personal">Personal administrativo</option>
+      </select>
       <label>Nombre completo</label>
-      <input type="text" id="input-name" placeholder="Nombre del alumno">
-      <label>Edad</label>
+      <input type="text" id="input-name" placeholder="Nombre de la persona">
+      <label>Edad <span style="font-weight:normal; color:var(--text-secondary);">(opcional)</span></label>
       <select id="input-age"><option value="">Selecciona la edad</option></select>
-      <label>Cursos que toma (puedes elegir varios)</label>
+      <label id="label-courses">Cursos que toma (puedes elegir varios)</label>
       <div id="course-checkboxes" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
         <span class="empty" style="padding:8px 0;">Agrega cursos al catálogo primero.</span>
       </div>
-      <button class="primary" id="btn-add-student">Agregar alumno</button>
+      <button class="primary" id="btn-add-student">Agregar persona</button>
     </div>
 
     <div class="card">
-      <h2>Lista de alumnos y sus códigos QR</h2>
-      <div style="display:flex; gap:8px; margin-bottom:4px; align-items:center;">
-        <input type="text" id="input-search" placeholder="Buscar alumno por nombre o curso..." style="flex:1;">
+      <h2>Lista de personas y sus códigos QR</h2>
+      <div style="display:flex; gap:8px; margin-bottom:4px; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="input-search" placeholder="Buscar por nombre o curso..." style="flex:1; min-width:150px;">
+        <select id="filter-person-type" style="max-width:200px;">
+          <option value="">Todos los tipos</option>
+          <option value="alumno">Solo alumnos</option>
+          <option value="profesor">Solo profesores</option>
+          <option value="personal">Solo personal administrativo</option>
+        </select>
         <button class="secondary" id="btn-print-catalog" style="white-space:nowrap;">Imprimir catálogo</button>
       </div>
       <label style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;">
         <input type="checkbox" id="input-show-archived" style="width:auto;">
-        <span style="font-size:13px; color:var(--text-secondary);">Mostrar alumnos eliminados/archivados</span>
+        <span style="font-size:13px; color:var(--text-secondary);">Mostrar personas eliminadas/archivadas</span>
       </label>
       <div id="student-list" class="student-grid"></div>
     </div>
   </div>
+
 
   <!-- ESCANEAR -->
   <div class="panel" id="panel-escanear">
@@ -323,8 +339,17 @@
 
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px;">
         <div>
-          <label>Alumno</label>
+          <label>Persona</label>
           <select id="filter-student"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select id="filter-report-type">
+            <option value="">Todos</option>
+            <option value="alumno">Alumnos</option>
+            <option value="profesor">Profesores</option>
+            <option value="personal">Personal admvo.</option>
+          </select>
         </div>
         <div>
           <label>Curso</label>
@@ -354,6 +379,7 @@
         <thead>
           <tr>
             <th class="sortable-th" data-field="name">Alumno <span class="sort-arrow" id="sort-arrow-name"></span></th>
+            <th class="sortable-th" data-field="type">Tipo <span class="sort-arrow" id="sort-arrow-type"></span></th>
             <th class="sortable-th" data-field="course">Curso <span class="sort-arrow" id="sort-arrow-course"></span></th>
             <th class="sortable-th" data-field="date">Fecha <span class="sort-arrow" id="sort-arrow-date"></span></th>
             <th class="sortable-th" data-field="checkin">Entrada <span class="sort-arrow" id="sort-arrow-checkin"></span></th>
@@ -407,7 +433,7 @@ function uid() { return 'STU-' + Math.random().toString(36).slice(2, 9).toUpperC
 
 // Catálogo fijo de edades (evita errores de captura por texto libre)
 const ageOptions = document.getElementById('input-age');
-for (let a = 2; a <= 99; a++) {
+for (let a = 2; a <= 80; a++) {
   const opt = document.createElement('option');
   opt.value = a;
   opt.textContent = a + ' años';
@@ -563,16 +589,21 @@ async function deleteCourse(id) {
 }
 window.deleteCourse = deleteCourse;
 
+const typeLabels = { alumno: 'Alumno', profesor: 'Profesor', personal: 'Personal admvo.' };
+function personType(s) { return s.personType || 'alumno'; } // por compatibilidad con registros previos
+
 function renderStudents() {
   const list = document.getElementById('student-list');
   const filterSelect = document.getElementById('filter-student');
   const activeStudents = students.filter(s => !s.archived);
-  document.getElementById('student-count').textContent = activeStudents.length + (activeStudents.length === 1 ? ' alumno' : ' alumnos');
+  document.getElementById('student-count').textContent = activeStudents.length + (activeStudents.length === 1 ? ' persona' : ' personas');
   // El filtro de reportes incluye a todos (incluidos archivados) para poder consultar su historial
   filterSelect.innerHTML = '<option value="">Todos</option>' + students.slice().sort((a,b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}">${s.name}${s.archived ? ' (archivado)' : ''}</option>`).join('');
 
   const showArchived = document.getElementById('input-show-archived').checked;
-  const baseList = showArchived ? students : activeStudents;
+  const typeFilter = document.getElementById('filter-person-type').value;
+  let baseList = showArchived ? students : activeStudents;
+  if (typeFilter) baseList = baseList.filter(s => personType(s) === typeFilter);
 
   const searchInput = document.getElementById('input-search');
   const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
@@ -581,11 +612,11 @@ function renderStudents() {
     : baseList;
 
   if (baseList.length === 0) {
-    list.innerHTML = `<div class="empty">${showArchived ? 'No hay alumnos.' : 'Aún no hay alumnos registrados.'}</div>`;
+    list.innerHTML = `<div class="empty">${showArchived || typeFilter ? 'No hay resultados para este filtro.' : 'Aún no hay personas registradas.'}</div>`;
     return;
   }
   if (visibleStudents.length === 0) {
-    list.innerHTML = '<div class="empty">Ningún alumno coincide con tu búsqueda.</div>';
+    list.innerHTML = '<div class="empty">Nadie coincide con tu búsqueda.</div>';
     return;
   }
 
@@ -595,10 +626,14 @@ function renderStudents() {
     div.className = 'student-card';
     if (s.archived) div.style.opacity = '0.6';
     const checkedIn = isCheckedIn(s.id);
+    const type = personType(s);
     div.innerHTML = `
       <div class="qr-box" id="qr-${s.id}"></div>
       <div class="name">${s.name}</div>
       <div class="meta">${s.age ? s.age + ' años · ' : ''}${(s.courses || []).join(', ')}</div>
+      <div style="margin:4px 0;">
+        <span class="badge type-${type}">${typeLabels[type]}</span>
+      </div>
       ${s.archived
         ? `<span class="badge out">Archivado</span>`
         : `<span class="badge ${checkedIn ? 'in' : 'out'}">${checkedIn ? 'En el aula' : 'Fuera'}</span>`
@@ -659,23 +694,28 @@ function printQr(id) {
 document.getElementById('btn-add-student').addEventListener('click', async () => {
   const name = document.getElementById('input-name').value.trim();
   const age = document.getElementById('input-age').value;
+  const selectedType = document.getElementById('input-person-type').value;
   const courseChecks = Array.from(document.querySelectorAll('.course-check:checked')).map(cb => cb.value);
-  if (!name) { alert('Ingresa el nombre del alumno.'); return; }
-  if (courseChecks.length === 0) { alert('Selecciona al menos un curso para el alumno.'); return; }
+  if (!name) { alert('Ingresa el nombre de la persona.'); return; }
+  if (selectedType === 'alumno' && courseChecks.length === 0) {
+    alert('Selecciona al menos un curso/materia.');
+    return;
+  }
   const id = uid();
   const btn = document.getElementById('btn-add-student');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    await setDoc(doc(db, 'students', id), { name, age, courses: courseChecks, archived: false });
+    await setDoc(doc(db, 'students', id), { name, age, personType: selectedType, courses: courseChecks, archived: false });
     document.getElementById('input-name').value = '';
     document.getElementById('input-age').value = '';
+    document.getElementById('input-person-type').value = 'alumno';
     document.querySelectorAll('.course-check:checked').forEach(cb => cb.checked = false);
   } catch (err) {
-    alert('No se pudo guardar el alumno: ' + err.message);
+    alert('No se pudo guardar el registro: ' + err.message);
   }
   btn.disabled = false;
-  btn.textContent = 'Agregar alumno';
+  btn.textContent = 'Agregar persona';
 });
 
 // TABS
@@ -778,6 +818,7 @@ async function registerAttendance(student, course) {
       await addDoc(recordsCol, {
         studentId: student.id,
         studentName: student.name,
+        personType: personType(student),
         course: course || null,
         date: dateStr,
         checkin: nowDate.toISOString(),
@@ -822,7 +863,13 @@ function renderOpenRecords() {
   const list = document.getElementById('open-records-list');
   const now = Date.now();
   const openRecords = records
-    .filter(r => !r.checkout && (now - new Date(r.checkin).getTime()) > ALERT_THRESHOLD_MS)
+    .filter(r => {
+      if (r.checkout) return false;
+      const student = students.find(s => s.id === r.studentId);
+      const type = student ? personType(student) : (r.personType || 'alumno');
+      if (type !== 'alumno') return false; // profesores y personal suelen quedarse varias horas, no aplica la alerta
+      return (now - new Date(r.checkin).getTime()) > ALERT_THRESHOLD_MS;
+    })
     .sort((a, b) => new Date(a.checkin) - new Date(b.checkin));
 
   if (openRecords.length === 0) {
@@ -835,13 +882,14 @@ function renderOpenRecords() {
   list.innerHTML = openRecords.map(r => {
     const student = students.find(s => s.id === r.studentId);
     const name = student ? student.name : (r.studentName || '(alumno eliminado)');
+    const type = student ? personType(student) : (r.personType || 'alumno');
     const checkinTime = new Date(r.checkin);
     const elapsedMs = now - checkinTime.getTime();
     return `
       <div class="open-record-row" id="open-row-${r.recordId}" style="border-bottom:1px solid var(--border); padding:10px 0;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
           <div>
-            <strong>${name}</strong>${r.course ? ' · ' + r.course : ''}
+            <strong>${name}</strong> <span class="badge type-${type}" style="margin-left:4px;">${typeLabels[type]}</span>${r.course ? ' · ' + r.course : ''}
             <div style="font-size:12px; color:var(--text-secondary);">Entró: ${r.date} ${checkinTime.toLocaleTimeString()} · lleva ${formatDuration(elapsedMs)} adentro</div>
           </div>
           <button class="secondary print-btn" onclick="showManualCheckout('${r.recordId}')">Registrar salida manual</button>
@@ -919,6 +967,7 @@ function getSortValue(r, field) {
   const name = student ? student.name : (r.studentName || '');
   switch (field) {
     case 'name': return name.toLowerCase();
+    case 'type': return student ? personType(student) : (r.personType || 'alumno');
     case 'course': return (r.course || '').toLowerCase();
     case 'date': return new Date(r.checkin).getTime();
     case 'checkin': return new Date(r.checkin).getTime();
@@ -960,6 +1009,7 @@ function updateSortArrows() {
 
 function getFilteredRecords() {
   const filterId = document.getElementById('filter-student').value;
+  const filterType = document.getElementById('filter-report-type').value;
   const filterCourse = document.getElementById('filter-course').value;
   const filterStatus = document.getElementById('filter-status').value;
   const dateFrom = document.getElementById('filter-date-from').value; // yyyy-mm-dd
@@ -967,6 +1017,10 @@ function getFilteredRecords() {
 
   let filtered = records.slice();
   if (filterId) filtered = filtered.filter(r => r.studentId === filterId);
+  if (filterType) filtered = filtered.filter(r => {
+    const student = students.find(s => s.id === r.studentId);
+    return student ? personType(student) === filterType : (r.personType || 'alumno') === filterType;
+  });
   if (filterCourse) filtered = filtered.filter(r => r.course === filterCourse);
   if (filterStatus === 'in') filtered = filtered.filter(r => !r.checkout);
   if (filterStatus === 'out') filtered = filtered.filter(r => !!r.checkout);
@@ -994,6 +1048,7 @@ function renderReports() {
   let totalMs = 0;
   filtered.forEach(r => {
     const student = students.find(s => s.id === r.studentId);
+    const type = student ? personType(student) : (r.personType || 'alumno');
     const checkinTime = new Date(r.checkin);
     const checkoutTime = r.checkout ? new Date(r.checkout) : null;
     const duration = checkoutTime ? checkoutTime - checkinTime : null;
@@ -1001,6 +1056,7 @@ function renderReports() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${student ? student.name + (student.archived ? ' (archivado)' : '') : (r.studentName || '(alumno eliminado)')}</td>
+      <td><span class="badge type-${type}">${typeLabels[type]}</span></td>
       <td>${r.course || '—'}</td>
       <td>${r.date}</td>
       <td>${checkinTime.toLocaleTimeString()}</td>
@@ -1020,12 +1076,14 @@ function renderReports() {
 }
 
 document.getElementById('filter-student').addEventListener('change', renderReports);
+document.getElementById('filter-report-type').addEventListener('change', renderReports);
 document.getElementById('filter-course').addEventListener('change', renderReports);
 document.getElementById('filter-status').addEventListener('change', renderReports);
 document.getElementById('filter-date-from').addEventListener('change', renderReports);
 document.getElementById('filter-date-to').addEventListener('change', renderReports);
 document.getElementById('btn-clear-filters').addEventListener('click', () => {
   document.getElementById('filter-student').value = '';
+  document.getElementById('filter-report-type').value = '';
   document.getElementById('filter-course').value = '';
   document.getElementById('filter-status').value = '';
   document.getElementById('filter-date-from').value = '';
@@ -1036,19 +1094,23 @@ document.getElementById('btn-clear-filters').addEventListener('click', () => {
 document.getElementById('input-search').addEventListener('input', renderStudents);
 
 document.getElementById('btn-print-catalog').addEventListener('click', () => {
-  if (students.length === 0) { alert('Aún no hay alumnos registrados.'); return; }
-  const sorted = students.slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (students.length === 0) { alert('Aún no hay personas registradas.'); return; }
+  const typeFilter = document.getElementById('filter-person-type').value;
+  const source = typeFilter ? students.filter(s => personType(s) === typeFilter) : students;
+  if (source.length === 0) { alert('No hay personas para este filtro.'); return; }
+  const sorted = source.slice().sort((a, b) => a.name.localeCompare(b.name));
   const w = window.open('', '_blank');
   const cards = sorted.map(s => `
     <div class="cat-card">
       <div class="cat-qr" id="cat-${s.id}"></div>
       <div class="cat-name">${s.name}</div>
+      <div class="cat-type">${typeLabels[personType(s)]}</div>
       <div class="cat-meta">${(s.courses || []).join(', ')}</div>
     </div>
   `).join('');
   const scripts = sorted.map(s => `new QRCode(document.getElementById('cat-${s.id}'), { text: "${s.id}", width: 110, height: 110 });`).join('\n');
   w.document.write(`
-    <html><head><title>Catálogo de alumnos</title>
+    <html><head><title>Catálogo</title>
     <style>
       body { font-family: sans-serif; padding: 20px; }
       h2 { text-align:center; }
@@ -1056,11 +1118,12 @@ document.getElementById('btn-print-catalog').addEventListener('click', () => {
       .cat-card { text-align: center; border: 1px solid #ddd; border-radius: 8px; padding: 10px; break-inside: avoid; }
       .cat-qr { display: flex; justify-content: center; margin-bottom: 6px; }
       .cat-name { font-weight: 600; font-size: 13px; }
+      .cat-type { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.03em; }
       .cat-meta { font-size: 11px; color: #666; }
     </style>
     </head>
     <body>
-      <h2>Catálogo de alumnos</h2>
+      <h2>Catálogo${typeFilter ? ' — ' + typeLabels[typeFilter] : ''}</h2>
       <div class="cat-grid">${cards}</div>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
       <script>
@@ -1071,13 +1134,21 @@ document.getElementById('btn-print-catalog').addEventListener('click', () => {
   `);
 });
 
+document.getElementById('input-person-type').addEventListener('change', (e) => {
+  const hideCourses = e.target.value === 'personal' || e.target.value === 'profesor';
+  document.getElementById('label-courses').style.display = hideCourses ? 'none' : '';
+  document.getElementById('course-checkboxes').style.display = hideCourses ? 'none' : '';
+});
+
 document.getElementById('input-show-archived').addEventListener('change', renderStudents);
+document.getElementById('filter-person-type').addEventListener('change', renderStudents);
 
 document.getElementById('btn-print-report').addEventListener('click', () => {
   const filtered = sortRecords(getFilteredRecords());
   if (filtered.length === 0) { alert('No hay registros que coincidan con los filtros actuales.'); return; }
 
   const studentName = document.getElementById('filter-student').selectedOptions[0].textContent;
+  const typeName = document.getElementById('filter-report-type').selectedOptions[0].textContent;
   const courseName = document.getElementById('filter-course').selectedOptions[0].textContent;
   const statusName = document.getElementById('filter-status').selectedOptions[0].textContent;
   const dateFrom = document.getElementById('filter-date-from').value || '—';
@@ -1087,12 +1158,14 @@ document.getElementById('btn-print-report').addEventListener('click', () => {
   let totalMs = 0;
   const rows = filtered.map(r => {
     const student = students.find(s => s.id === r.studentId);
+    const type = student ? personType(student) : (r.personType || 'alumno');
     const checkinTime = new Date(r.checkin);
     const checkoutTime = r.checkout ? new Date(r.checkout) : null;
     const duration = checkoutTime ? checkoutTime - checkinTime : null;
     if (duration) totalMs += duration;
     return `<tr>
       <td>${student ? student.name : (r.studentName || '(alumno eliminado)')}</td>
+      <td>${typeLabels[type]}</td>
       <td>${r.course || '—'}</td>
       <td>${r.date}</td>
       <td>${checkinTime.toLocaleTimeString()}</td>
@@ -1118,11 +1191,11 @@ document.getElementById('btn-print-report').addEventListener('click', () => {
     <body>
       <h2>Reporte de asistencia</h2>
       <div class="filters">
-        Alumno: ${studentName} · Curso: ${courseName} · Estatus: ${statusName} · Del ${dateFrom} al ${dateTo} · Generado: ${new Date().toLocaleString()}
+        Persona: ${studentName} · Tipo: ${typeName} · Curso: ${courseName} · Estatus: ${statusName} · Del ${dateFrom} al ${dateTo} · Generado: ${new Date().toLocaleString()}
       </div>
       <div class="summary">${summaryHtml.replace(/class="stat-card"/g, 'class="summary-card"').replace(/class="label"/g, '').replace(/class="value"/g, '')}</div>
       <table>
-        <thead><tr><th>Alumno</th><th>Curso</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr></thead>
+        <thead><tr><th>Alumno</th><th>Tipo</th><th>Curso</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <script>setTimeout(() => window.print(), 400);<\/script>
