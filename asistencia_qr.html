@@ -417,9 +417,24 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-const studentsCol = collection(db, 'students');
-const recordsCol = collection(db, 'records');
-const coursesCol = collection(db, 'courses');
+
+// Estas colecciones se definen dinámicamente al iniciar sesión, ya que dependen
+// de la organización (orgId) a la que pertenece cada usuario. Ver setOrgCollections().
+let studentsCol = null;
+let recordsCol = null;
+let coursesCol = null;
+let orgId = null;
+let orgName = '';
+
+function setOrgCollections(id) {
+  orgId = id;
+  studentsCol = collection(db, 'organizations', orgId, 'students');
+  recordsCol = collection(db, 'organizations', orgId, 'records');
+  coursesCol = collection(db, 'organizations', orgId, 'courses');
+}
+function orgDoc(collectionName, docId) {
+  return doc(db, 'organizations', orgId, collectionName, docId);
+}
 
 let students = [];
 let records = [];
@@ -467,26 +482,43 @@ async function doLogin() {
 document.getElementById('btn-logout').addEventListener('click', async () => {
   unsubscribers.forEach(u => u());
   unsubscribers = [];
+  students = [];
+  records = [];
+  courses = [];
+  studentsCol = null;
+  recordsCol = null;
+  coursesCol = null;
+  orgId = null;
+  orgName = '';
   await signOut(auth);
 });
 
 onAuthStateChanged(auth, async (user) => {
   if (user) {
+    let roleData = null;
     try {
       const roleSnap = await getDoc(doc(db, 'userRoles', user.uid));
-      currentRole = roleSnap.exists() ? roleSnap.data().role : null;
+      roleData = roleSnap.exists() ? roleSnap.data() : null;
+      currentRole = roleData ? roleData.role : null;
     } catch (err) {
       currentRole = null;
     }
-    if (!currentRole) {
-      document.getElementById('login-error').textContent = 'Tu cuenta no tiene un rol asignado. Contacta al administrador.';
+    if (!currentRole || !roleData.orgId) {
+      document.getElementById('login-error').textContent = 'Tu cuenta no tiene una organización asignada. Contacta al administrador.';
       document.getElementById('login-error').style.display = 'block';
       await signOut(auth);
       return;
     }
+    setOrgCollections(roleData.orgId);
+    try {
+      const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+      orgName = orgSnap.exists() ? (orgSnap.data().name || orgId) : orgId;
+    } catch (err) {
+      orgName = orgId;
+    }
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'block';
-    document.getElementById('user-email-label').textContent = user.email + ' · ' + (currentRole === 'admin' ? 'Administrador' : 'Operador');
+    document.getElementById('user-email-label').textContent = orgName + ' · ' + user.email + ' · ' + (currentRole === 'admin' ? 'Administrador' : 'Operador');
     applyRolePermissions();
     startRealtimeListeners();
   } else {
@@ -585,7 +617,7 @@ document.getElementById('btn-add-course').addEventListener('click', async () => 
 });
 
 async function deleteCourse(id) {
-  await deleteDoc(doc(db, 'courses', id));
+  await deleteDoc(orgDoc('courses', id));
 }
 window.deleteCourse = deleteCourse;
 
@@ -666,12 +698,12 @@ function askRemoveStudent(id) {
 }
 
 async function removeStudent(id) {
-  await updateDoc(doc(db, 'students', id), { archived: true });
+  await updateDoc(orgDoc('students', id), { archived: true });
   // Se conserva el registro para mantener su historial en reportes; solo se oculta de la lista activa
 }
 
 async function restoreStudent(id) {
-  await updateDoc(doc(db, 'students', id), { archived: false });
+  await updateDoc(orgDoc('students', id), { archived: false });
 }
 
 function printQr(id) {
@@ -706,7 +738,7 @@ document.getElementById('btn-add-student').addEventListener('click', async () =>
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    await setDoc(doc(db, 'students', id), { name, age, personType: selectedType, courses: courseChecks, archived: false });
+    await setDoc(orgDoc('students', id), { name, age, personType: selectedType, courses: courseChecks, archived: false });
     document.getElementById('input-name').value = '';
     document.getElementById('input-age').value = '';
     document.getElementById('input-person-type').value = 'alumno';
@@ -811,7 +843,7 @@ async function registerAttendance(student, course) {
 
   try {
     if (openRecord) {
-      await updateDoc(doc(db, 'records', openRecord.recordId), { checkout: nowDate.toISOString() });
+      await updateDoc(orgDoc('records', openRecord.recordId), { checkout: nowDate.toISOString() });
       resultBox.className = 'out';
       resultBox.textContent = `Salida registrada: ${student.name}${courseLabel} a las ${timeStr}`;
     } else {
@@ -948,7 +980,7 @@ function reviewManualCheckout(recordId) {
 
 async function confirmManualCheckout(recordId, isoDate) {
   try {
-    await updateDoc(doc(db, 'records', recordId), { checkout: isoDate, checkoutManual: true });
+    await updateDoc(orgDoc('records', recordId), { checkout: isoDate, checkoutManual: true });
   } catch (err) {
     alert('No se pudo registrar la salida: ' + err.message);
   }
