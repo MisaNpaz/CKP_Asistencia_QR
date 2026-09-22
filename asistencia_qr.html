@@ -3,69 +3,407 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Crear cuenta — Control de asistencia con QR</title>
+<title>Control de asistencia con QR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
   :root {
-    --bg: #f4f5f2; --card: #ffffff; --border: #dedcd2; --text: #24231f;
-    --text-secondary: #6d6b62; --accent: #185fa5; --accent-bg: #e6f1fb;
-    --danger: #a32d2d; --danger-bg: #fcebeb; --success: #0f6e56; --success-bg: #e1f5ee;
+    --bg: #f4f5f2;
+    --card: #ffffff;
+    --border: #dedcd2;
+    --text: #24231f;
+    --text-secondary: #6d6b62;
+    --accent: #185fa5;
+    --accent-bg: #e6f1fb;
+    --success: #0f6e56;
+    --success-bg: #e1f5ee;
+    --danger: #a32d2d;
+    --danger-bg: #fcebeb;
     --radius: 10px;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--text);
-    display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
   }
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 4px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+  }
+  nav.tabs button {
+    flex: 1;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  nav.tabs button.active {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+  .panel { display: none; }
+  .panel.active { display: block; }
   .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 28px 26px; max-width: 420px; width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 16px;
   }
-  h1 { font-size: 19px; margin: 0 0 4px; }
-  p.sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 18px; }
-  label { display: block; font-size: 13px; color: var(--text-secondary); margin: 14px 0 4px; }
-  input {
-    width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
-    font-size: 14px; background: #fff; color: var(--text);
+  .card h2 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0 0 14px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+  input[type=text], input[type=number], input[type=password], input[type=date], input[type=datetime-local] {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
   }
   input:focus { outline: none; border-color: var(--accent); }
-  .hint { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
   button.primary {
-    margin-top: 20px; width: 100%; background: var(--accent); color: #fff; border: none;
-    padding: 11px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;
+    margin-top: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
   }
-  button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
-  #msg { margin-top: 14px; padding: 12px; border-radius: 8px; font-size: 13px; display: none; }
-  #msg.error { background: var(--danger-bg); color: var(--danger); display: block; }
-  #msg.success { background: var(--success-bg); color: var(--success); display: block; }
+  button.primary:hover { opacity: 0.9; }
+  button.secondary {
+    background: #fff;
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .student-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .student-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+    background: #fafaf7;
+  }
+  .student-card .qr-box {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+  .student-card .name {
+    font-weight: 600;
+    font-size: 14px;
+    margin: 4px 0 2px;
+  }
+  .student-card .meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .badge {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .badge.in { background: var(--success-bg); color: var(--success); }
+  .badge.out { background: #eee; color: var(--text-secondary); }
+  .badge.type-alumno { background: var(--accent-bg); color: var(--accent); }
+  .badge.type-profesor { background: #f1e6fa; color: #6b3fa0; }
+  .badge.type-personal { background: #fdf0dd; color: #a0631f; }
+  #reader {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  #scan-result {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    text-align: center;
+    display: none;
+  }
+  #scan-result.in { background: var(--success-bg); color: var(--success); display: block; }
+  #scan-result.out { background: var(--accent-bg); color: var(--accent); display: block; }
+  #scan-result.error { background: var(--danger-bg); color: var(--danger); display: block; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  th { color: var(--text-secondary); font-weight: 500; }
+  th.sortable-th { cursor: pointer; user-select: none; white-space: nowrap; }
+  th.sortable-th:hover { color: var(--accent); }
+  .sort-arrow { font-size: 10px; }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: #f0efe9;
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  .stat-card .label { font-size: 12px; color: var(--text-secondary); }
+  .stat-card .value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+  .empty {
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px 0;
+  }
+  select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+  }
+  .row-actions { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+  .print-btn { font-size: 12px; }
 </style>
 </head>
 <body>
 
-<div class="card">
-  <h1>Crea tu cuenta</h1>
-  <p class="sub">Registra tu negocio para empezar a usar el control de asistencia con QR.</p>
+<!-- LOGIN -->
+<div id="login-screen" style="display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px;">
+  <div class="card" style="max-width:340px; width:100%;">
+    <h2 style="text-align:center;">Control de asistencia con QR</h2>
+    <label>Correo</label>
+    <input type="text" id="login-email" placeholder="correo@ejemplo.com">
+    <label>Contraseña</label>
+    <input type="password" id="login-password" placeholder="Contraseña">
+    <button class="primary" id="btn-login" style="width:100%;">Iniciar sesión</button>
+    <div id="login-error" style="color:var(--danger); font-size:13px; text-align:center; margin-top:10px; display:none;"></div>
+  </div>
+</div>
 
-  <label>Nombre de tu negocio</label>
-  <input type="text" id="org-name" placeholder="Ej. Academia Deportiva Norte">
+<!-- APP -->
+<div id="app-screen" style="display:none;">
+<header>
+  <h1>Control de asistencia con QR</h1>
+  <div style="display:flex; align-items:center; gap:12px;">
+    <span style="font-size:12px; color:#6d6b62;" id="student-count">Conectando...</span>
+    <span id="user-email-label" style="font-size:12px; color:#6d6b62;"></span>
+    <button class="secondary" id="btn-logout" style="padding:5px 10px; font-size:12px;">Salir</button>
+  </div>
+</header>
 
-  <label>Identificador único</label>
-  <input type="text" id="org-id" placeholder="ej. academia-norte">
-  <div class="hint">Solo letras, números y guiones. Será parte de la organización de tus datos, no se puede cambiar después.</div>
+<div class="container">
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="alumnos" id="tab-btn-alumnos">Personas</button>
+    <button class="tab-btn" data-tab="escanear">Escanear</button>
+    <button class="tab-btn" data-tab="reportes" id="tab-btn-reportes">Reportes</button>
+  </nav>
 
-  <label>Tu correo (será tu cuenta de administrador)</label>
-  <input type="text" id="admin-email" placeholder="correo@tunegocio.com">
+  <!-- ALUMNOS -->
+  <div class="panel active" id="panel-alumnos">
+    <div class="card">
+      <h2>Catálogo de cursos / materias</h2>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="input-new-course" placeholder="Nombre del curso, ej. Matemáticas" style="flex:1;">
+        <button class="secondary" id="btn-add-course" style="white-space:nowrap;">Agregar curso</button>
+      </div>
+      <div id="course-catalog-list" style="margin-top:12px; display:flex; flex-wrap:wrap; gap:6px;"></div>
+    </div>
 
-  <label>Contraseña</label>
-  <input type="password" id="admin-password" placeholder="Mínimo 6 caracteres">
+    <div class="card">
+      <h2>Registrar persona</h2>
+      <label>Tipo de persona</label>
+      <select id="input-person-type">
+        <option value="alumno">Alumno</option>
+        <option value="profesor">Profesor</option>
+        <option value="personal">Personal administrativo</option>
+      </select>
+      <label>Nombre completo</label>
+      <input type="text" id="input-name" placeholder="Nombre de la persona">
+      <label>Edad <span style="font-weight:normal; color:var(--text-secondary);">(opcional)</span></label>
+      <select id="input-age"><option value="">Selecciona la edad</option></select>
+      <label id="label-courses">Cursos que toma (puedes elegir varios)</label>
+      <div id="course-checkboxes" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
+        <span class="empty" style="padding:8px 0;">Agrega cursos al catálogo primero.</span>
+      </div>
+      <button class="primary" id="btn-add-student">Agregar persona</button>
+    </div>
 
-  <button class="primary" id="btn-submit">Crear mi cuenta</button>
-  <div id="msg"></div>
+    <div class="card">
+      <h2>Lista de personas y sus códigos QR</h2>
+      <div style="display:flex; gap:8px; margin-bottom:4px; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="input-search" placeholder="Buscar por nombre o curso..." style="flex:1; min-width:150px;">
+        <select id="filter-person-type" style="max-width:200px;">
+          <option value="">Todos los tipos</option>
+          <option value="alumno">Solo alumnos</option>
+          <option value="profesor">Solo profesores</option>
+          <option value="personal">Solo personal administrativo</option>
+        </select>
+        <button class="secondary" id="btn-print-catalog" style="white-space:nowrap;">Imprimir catálogo</button>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;">
+        <input type="checkbox" id="input-show-archived" style="width:auto;">
+        <span style="font-size:13px; color:var(--text-secondary);">Mostrar personas eliminadas/archivadas</span>
+      </label>
+      <div id="student-list" class="student-grid"></div>
+    </div>
+  </div>
+
+
+  <!-- ESCANEAR -->
+  <div class="panel" id="panel-escanear">
+    <div class="card">
+      <h2>Escanear código QR</h2>
+      <div id="reader"></div>
+      <div id="course-picker" style="display:none; margin-top:14px; text-align:center;">
+        <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">
+          <strong id="course-picker-name"></strong> toma varias materias. ¿Para cuál es este registro?
+        </p>
+        <div id="course-picker-options" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;"></div>
+      </div>
+      <div id="scan-result"></div>
+    </div>
+  </div>
+
+  <!-- REPORTES -->
+  <div class="panel" id="panel-reportes">
+    <div class="card" id="open-alert-card" style="display:none; border-color:var(--danger);">
+      <h2 style="color:var(--danger);">⚠ Alumnos con más de 60 min sin salida</h2>
+      <div id="open-records-list"></div>
+    </div>
+
+    <div class="card">
+      <h2>Resumen</h2>
+      <div class="stat-grid" id="stat-grid"></div>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px;">
+        <div>
+          <label>Persona</label>
+          <select id="filter-student"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select id="filter-report-type">
+            <option value="">Todos</option>
+            <option value="alumno">Alumnos</option>
+            <option value="profesor">Profesores</option>
+            <option value="personal">Personal admvo.</option>
+          </select>
+        </div>
+        <div>
+          <label>Curso</label>
+          <select id="filter-course"><option value="">Todos</option></select>
+        </div>
+        <div>
+          <label>Estatus</label>
+          <select id="filter-status">
+            <option value="">Todos</option>
+            <option value="in">En curso (sin salida)</option>
+            <option value="out">Completados</option>
+          </select>
+        </div>
+        <div>
+          <label>Desde</label>
+          <input type="date" id="filter-date-from">
+        </div>
+        <div>
+          <label>Hasta</label>
+          <input type="date" id="filter-date-to">
+        </div>
+      </div>
+      <button class="secondary" id="btn-clear-filters" style="margin-top:10px;">Limpiar filtros</button>
+      <button class="secondary" id="btn-print-report" style="margin-top:10px;">Imprimir reporte (PDF)</button>
+
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable-th" data-field="name">Alumno <span class="sort-arrow" id="sort-arrow-name"></span></th>
+            <th class="sortable-th" data-field="type">Tipo <span class="sort-arrow" id="sort-arrow-type"></span></th>
+            <th class="sortable-th" data-field="course">Curso <span class="sort-arrow" id="sort-arrow-course"></span></th>
+            <th class="sortable-th" data-field="date">Fecha <span class="sort-arrow" id="sort-arrow-date"></span></th>
+            <th class="sortable-th" data-field="checkin">Entrada <span class="sort-arrow" id="sort-arrow-checkin"></span></th>
+            <th class="sortable-th" data-field="checkout">Salida <span class="sort-arrow" id="sort-arrow-checkout"></span></th>
+            <th class="sortable-th" data-field="duration">Tiempo <span class="sort-arrow" id="sort-arrow-duration"></span></th>
+          </tr>
+        </thead>
+        <tbody id="report-body"></tbody>
+      </table>
+      <div class="empty" id="report-empty" style="display:none;">Aún no hay registros de asistencia.</div>
+    </div>
+  </div>
+</div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import {
+  getFirestore, collection, doc, setDoc, deleteDoc, getDoc,
+  addDoc, updateDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBtknYhSzzMYJ21vffJmIyV-rchTxdDaak",
@@ -77,49 +415,831 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const functions = getFunctions(app); // región por defecto: us-central1
-const createOrganization = httpsCallable(functions, 'createOrganization');
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-// Autogenerar sugerencia de ID a partir del nombre, pero permitir editarlo
-document.getElementById('org-name').addEventListener('input', (e) => {
-  const idField = document.getElementById('org-id');
-  if (idField.dataset.touched) return;
-  idField.value = e.target.value.trim().toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
-    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-});
-document.getElementById('org-id').addEventListener('input', (e) => { e.target.dataset.touched = 'true'; });
+// Estas colecciones se definen dinámicamente al iniciar sesión, ya que dependen
+// de la organización (orgId) a la que pertenece cada usuario. Ver setOrgCollections().
+let studentsCol = null;
+let recordsCol = null;
+let coursesCol = null;
+let orgId = null;
+let orgName = '';
 
-document.getElementById('btn-submit').addEventListener('click', async () => {
-  const orgName = document.getElementById('org-name').value.trim();
-  const orgId = document.getElementById('org-id').value.trim();
-  const adminEmail = document.getElementById('admin-email').value.trim();
-  const adminPassword = document.getElementById('admin-password').value;
-  const msg = document.getElementById('msg');
-  const btn = document.getElementById('btn-submit');
+function setOrgCollections(id) {
+  orgId = id;
+  studentsCol = collection(db, 'organizations', orgId, 'students');
+  recordsCol = collection(db, 'organizations', orgId, 'records');
+  coursesCol = collection(db, 'organizations', orgId, 'courses');
+}
+function orgDoc(collectionName, docId) {
+  return doc(db, 'organizations', orgId, collectionName, docId);
+}
 
-  msg.style.display = 'none';
-  if (!orgName || !orgId || !adminEmail || !adminPassword) {
-    msg.className = 'error'; msg.textContent = 'Completa todos los campos.'; return;
-  }
+let students = [];
+let records = [];
+let courses = [];
+let html5QrCode = null;
+let pendingScanStudent = null; // alumno en espera de que se elija curso
+let currentRole = null; // 'admin' | 'operador'
+let unsubscribers = [];
 
+function uid() { return 'STU-' + Math.random().toString(36).slice(2, 9).toUpperCase(); }
+
+// Catálogo fijo de edades (evita errores de captura por texto libre)
+const ageOptions = document.getElementById('input-age');
+for (let a = 2; a <= 80; a++) {
+  const opt = document.createElement('option');
+  opt.value = a;
+  opt.textContent = a + ' años';
+  ageOptions.appendChild(opt);
+}
+
+// ---------- LOGIN ----------
+document.getElementById('btn-login').addEventListener('click', doLogin);
+document.getElementById('login-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorBox = document.getElementById('login-error');
+  const btn = document.getElementById('btn-login');
+  errorBox.style.display = 'none';
+  if (!email || !password) { errorBox.textContent = 'Ingresa correo y contraseña.'; errorBox.style.display = 'block'; return; }
   btn.disabled = true;
-  btn.textContent = 'Creando cuenta...';
+  btn.textContent = 'Ingresando...';
   try {
-    const result = await createOrganization({ orgId, orgName, adminEmail, adminPassword });
-    msg.className = 'success';
-    msg.textContent = '¡Listo! Tu cuenta "' + result.data.orgId + '" fue creada. Ya puedes iniciar sesión en la app con tu correo y contraseña.';
-    document.getElementById('org-name').value = '';
-    document.getElementById('org-id').value = '';
-    document.getElementById('admin-email').value = '';
-    document.getElementById('admin-password').value = '';
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged se encarga del resto
   } catch (err) {
-    msg.className = 'error';
-    msg.textContent = err.message || 'Ocurrió un error al crear la cuenta.';
+    errorBox.textContent = 'Correo o contraseña incorrectos.';
+    errorBox.style.display = 'block';
   }
   btn.disabled = false;
-  btn.textContent = 'Crear mi cuenta';
+  btn.textContent = 'Iniciar sesión';
+}
+
+document.getElementById('btn-logout').addEventListener('click', async () => {
+  unsubscribers.forEach(u => u());
+  unsubscribers = [];
+  students = [];
+  records = [];
+  courses = [];
+  studentsCol = null;
+  recordsCol = null;
+  coursesCol = null;
+  orgId = null;
+  orgName = '';
+  await signOut(auth);
 });
+
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    let roleData = null;
+    try {
+      const roleSnap = await getDoc(doc(db, 'userRoles', user.uid));
+      roleData = roleSnap.exists() ? roleSnap.data() : null;
+      currentRole = roleData ? roleData.role : null;
+    } catch (err) {
+      currentRole = null;
+    }
+    if (!currentRole || !roleData.orgId) {
+      document.getElementById('login-error').textContent = 'Tu cuenta no tiene una organización asignada. Contacta al administrador.';
+      document.getElementById('login-error').style.display = 'block';
+      await signOut(auth);
+      return;
+    }
+    setOrgCollections(roleData.orgId);
+    try {
+      const orgSnap = await getDoc(doc(db, 'organizations', orgId));
+      orgName = orgSnap.exists() ? (orgSnap.data().name || orgId) : orgId;
+    } catch (err) {
+      orgName = orgId;
+    }
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-screen').style.display = 'block';
+    document.getElementById('user-email-label').textContent = orgName + ' · ' + user.email + ' · ' + (currentRole === 'admin' ? 'Administrador' : 'Operador');
+    applyRolePermissions();
+    startRealtimeListeners();
+  } else {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('app-screen').style.display = 'none';
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+  }
+});
+
+function applyRolePermissions() {
+  const isAdmin = currentRole === 'admin';
+  document.getElementById('tab-btn-alumnos').style.display = isAdmin ? '' : 'none';
+  document.getElementById('tab-btn-reportes').style.display = isAdmin ? '' : 'none';
+  if (!isAdmin) {
+    // El operador solo puede escanear
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="escanear"]').classList.add('active');
+    document.getElementById('panel-escanear').classList.add('active');
+    startScanner();
+  }
+}
+
+function startRealtimeListeners() {
+  // Escucha en tiempo real: cualquier cambio desde cualquier dispositivo se refleja aquí
+  unsubscribers.push(onSnapshot(studentsCol, (snapshot) => {
+    students = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderStudents();
+    renderReports();
+  }, (err) => {
+    document.getElementById('student-count').textContent = 'Error de conexión';
+    console.error(err);
+  }));
+
+  unsubscribers.push(onSnapshot(recordsCol, (snapshot) => {
+    records = snapshot.docs.map(d => ({ recordId: d.id, ...d.data() }));
+    renderStudents();
+    renderReports();
+  }, (err) => console.error(err)));
+
+  unsubscribers.push(onSnapshot(coursesCol, (snapshot) => {
+    courses = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name));
+    renderCourseCatalog();
+    renderCourseCheckboxes();
+  }, (err) => console.error(err)));
+}
+
+function isCheckedIn(studentId) {
+  const open = records.filter(r => r.studentId === studentId && !r.checkout);
+  return open.length > 0;
+}
+
+// Refresca la alerta de "más de 60 min" cada minuto, aunque no haya cambios nuevos en la base de datos
+setInterval(() => {
+  if (document.getElementById('app-screen').style.display !== 'none') renderOpenRecords();
+}, 60000);
+
+function renderCourseCatalog() {
+  const list = document.getElementById('course-catalog-list');
+  if (courses.length === 0) {
+    list.innerHTML = '<span class="empty" style="padding:4px 0;">Aún no hay cursos en el catálogo.</span>';
+    return;
+  }
+  list.innerHTML = courses.map(c => `
+    <span class="badge in" style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px;">
+      ${c.name}
+      <button onclick="deleteCourse('${c.id}')" style="border:none; background:none; cursor:pointer; color:var(--danger); font-weight:bold; padding:0;" title="Eliminar curso">×</button>
+    </span>
+  `).join('');
+}
+
+function renderCourseCheckboxes() {
+  const container = document.getElementById('course-checkboxes');
+  if (courses.length === 0) {
+    container.innerHTML = '<span class="empty" style="padding:8px 0;">Agrega cursos al catálogo primero.</span>';
+    return;
+  }
+  container.innerHTML = courses.map(c => `
+    <label style="display:flex; align-items:center; gap:5px; font-size:13px; font-weight:normal; margin:0; cursor:pointer;">
+      <input type="checkbox" value="${c.name}" class="course-check" style="width:auto;"> ${c.name}
+    </label>
+  `).join('');
+}
+
+document.getElementById('btn-add-course').addEventListener('click', async () => {
+  const input = document.getElementById('input-new-course');
+  const name = input.value.trim();
+  if (!name) return;
+  if (courses.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+    alert('Ese curso ya existe en el catálogo.');
+    return;
+  }
+  await addDoc(coursesCol, { name });
+  input.value = '';
+});
+
+async function deleteCourse(id) {
+  await deleteDoc(orgDoc('courses', id));
+}
+window.deleteCourse = deleteCourse;
+
+const typeLabels = { alumno: 'Alumno', profesor: 'Profesor', personal: 'Personal admvo.' };
+function personType(s) { return s.personType || 'alumno'; } // por compatibilidad con registros previos
+
+function renderStudents() {
+  const list = document.getElementById('student-list');
+  const filterSelect = document.getElementById('filter-student');
+  const activeStudents = students.filter(s => !s.archived);
+  document.getElementById('student-count').textContent = activeStudents.length + (activeStudents.length === 1 ? ' persona' : ' personas');
+  // El filtro de reportes incluye a todos (incluidos archivados) para poder consultar su historial
+  filterSelect.innerHTML = '<option value="">Todos</option>' + students.slice().sort((a,b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}">${s.name}${s.archived ? ' (archivado)' : ''}</option>`).join('');
+
+  const showArchived = document.getElementById('input-show-archived').checked;
+  const typeFilter = document.getElementById('filter-person-type').value;
+  let baseList = showArchived ? students : activeStudents;
+  if (typeFilter) baseList = baseList.filter(s => personType(s) === typeFilter);
+
+  const searchInput = document.getElementById('input-search');
+  const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+  const visibleStudents = query
+    ? baseList.filter(s => s.name.toLowerCase().includes(query) || (s.courses || []).join(' ').toLowerCase().includes(query))
+    : baseList;
+
+  if (baseList.length === 0) {
+    list.innerHTML = `<div class="empty">${showArchived || typeFilter ? 'No hay resultados para este filtro.' : 'Aún no hay personas registradas.'}</div>`;
+    return;
+  }
+  if (visibleStudents.length === 0) {
+    list.innerHTML = '<div class="empty">Nadie coincide con tu búsqueda.</div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  visibleStudents.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'student-card';
+    if (s.archived) div.style.opacity = '0.6';
+    const checkedIn = isCheckedIn(s.id);
+    const type = personType(s);
+    div.innerHTML = `
+      <div class="qr-box" id="qr-${s.id}"></div>
+      <div class="name">${s.name}</div>
+      <div class="meta">${s.age ? s.age + ' años · ' : ''}${(s.courses || []).join(', ')}</div>
+      <div style="margin:4px 0;">
+        <span class="badge type-${type}">${typeLabels[type]}</span>
+      </div>
+      ${s.archived
+        ? `<span class="badge out">Archivado</span>`
+        : `<span class="badge ${checkedIn ? 'in' : 'out'}">${checkedIn ? 'En el aula' : 'Fuera'}</span>`
+      }
+      <div class="row-actions" id="actions-${s.id}">
+        ${s.archived
+          ? `<button class="secondary print-btn" onclick="restoreStudent('${s.id}')">Restaurar</button>`
+          : `<button class="secondary print-btn" onclick="printQr('${s.id}')">Imprimir</button>
+             <button class="secondary print-btn" onclick="askRemoveStudent('${s.id}')">Archivar</button>`
+        }
+      </div>
+    `;
+    list.appendChild(div);
+    new QRCode(div.querySelector(`#qr-${s.id}`), {
+      text: s.id,
+      width: 120,
+      height: 120
+    });
+  });
+}
+
+function askRemoveStudent(id) {
+  const actionsDiv = document.getElementById('actions-' + id);
+  if (!actionsDiv) return;
+  actionsDiv.innerHTML = `
+    <span style="font-size:12px; color:var(--danger);">¿Archivar? (se conserva su historial)</span>
+    <button class="secondary print-btn" style="color:var(--danger); border-color:var(--danger);" onclick="removeStudent('${id}')">Sí, archivar</button>
+    <button class="secondary print-btn" onclick="renderStudents()">Cancelar</button>
+  `;
+}
+
+async function removeStudent(id) {
+  await updateDoc(orgDoc('students', id), { archived: true });
+  // Se conserva el registro para mantener su historial en reportes; solo se oculta de la lista activa
+}
+
+async function restoreStudent(id) {
+  await updateDoc(orgDoc('students', id), { archived: false });
+}
+
+function printQr(id) {
+  const student = students.find(s => s.id === id);
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>QR - ${student.name}</title></head>
+    <body style="text-align:center; font-family:sans-serif; padding-top:40px;">
+      <h3>${student.name}</h3>
+      <div id="print-qr" style="display:flex; justify-content:center;"></div>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+      <script>
+        new QRCode(document.getElementById('print-qr'), { text: "${student.id}", width: 220, height: 220 });
+        setTimeout(() => window.print(), 400);
+      <\/script>
+    </body></html>
+  `);
+}
+
+document.getElementById('btn-add-student').addEventListener('click', async () => {
+  const name = document.getElementById('input-name').value.trim();
+  const age = document.getElementById('input-age').value;
+  const selectedType = document.getElementById('input-person-type').value;
+  const courseChecks = Array.from(document.querySelectorAll('.course-check:checked')).map(cb => cb.value);
+  if (!name) { alert('Ingresa el nombre de la persona.'); return; }
+  if (selectedType === 'alumno' && courseChecks.length === 0) {
+    alert('Selecciona al menos un curso/materia.');
+    return;
+  }
+  const id = uid();
+  const btn = document.getElementById('btn-add-student');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  try {
+    await setDoc(orgDoc('students', id), { name, age, personType: selectedType, courses: courseChecks, archived: false });
+    document.getElementById('input-name').value = '';
+    document.getElementById('input-age').value = '';
+    document.getElementById('input-person-type').value = 'alumno';
+    document.querySelectorAll('.course-check:checked').forEach(cb => cb.checked = false);
+  } catch (err) {
+    alert('No se pudo guardar el registro: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Agregar persona';
+});
+
+// TABS
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'escanear') startScanner();
+    else stopScanner();
+    if (btn.dataset.tab === 'reportes') renderReports();
+  });
+});
+
+function startScanner() {
+  if (html5QrCode) return;
+  html5QrCode = new Html5Qrcode("reader");
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 220 },
+    onScanSuccess,
+    () => {}
+  ).catch(err => {
+    document.getElementById('scan-result').className = 'error';
+    document.getElementById('scan-result').textContent = 'No se pudo acceder a la cámara: ' + err;
+  });
+}
+
+function stopScanner() {
+  if (html5QrCode) {
+    html5QrCode.stop().then(() => { html5QrCode = null; }).catch(() => { html5QrCode = null; });
+  }
+}
+
+let lastScanTime = 0;
+async function onScanSuccess(decodedText) {
+  const now = Date.now();
+  if (now - lastScanTime < 2500) return;
+
+  // Si ya estamos esperando que el usuario elija un curso, ignorar nuevos escaneos
+  if (pendingScanStudent) return;
+
+  const student = students.find(s => s.id === decodedText && !s.archived);
+  const resultBox = document.getElementById('scan-result');
+  if (!student) {
+    resultBox.className = 'error';
+    resultBox.textContent = 'Código QR no reconocido.';
+    return;
+  }
+
+  lastScanTime = now;
+  const studentCourses = student.courses || [];
+
+  if (studentCourses.length > 1) {
+    showCoursePicker(student);
+    return;
+  }
+
+  await registerAttendance(student, studentCourses[0] || null);
+}
+
+function showCoursePicker(student) {
+  pendingScanStudent = student;
+  const picker = document.getElementById('course-picker');
+  const nameEl = document.getElementById('course-picker-name');
+  const optionsEl = document.getElementById('course-picker-options');
+  nameEl.textContent = student.name;
+  optionsEl.innerHTML = (student.courses || []).map(c =>
+    `<button class="secondary" onclick="pickCourse('${c.replace(/'/g, "\\'")}')">${c}</button>`
+  ).join('');
+  picker.style.display = 'block';
+  document.getElementById('scan-result').className = '';
+  document.getElementById('scan-result').textContent = '';
+}
+
+async function pickCourse(course) {
+  const student = pendingScanStudent;
+  document.getElementById('course-picker').style.display = 'none';
+  pendingScanStudent = null;
+  lastScanTime = Date.now();
+  if (student) await registerAttendance(student, course);
+}
+window.pickCourse = pickCourse;
+
+async function registerAttendance(student, course) {
+  const resultBox = document.getElementById('scan-result');
+  const openRecord = records.find(r => r.studentId === student.id && r.course === (course || null) && !r.checkout);
+  const nowDate = new Date();
+  const dateStr = nowDate.toLocaleDateString();
+  const timeStr = nowDate.toLocaleTimeString();
+  const courseLabel = course ? ` (${course})` : '';
+
+  try {
+    if (openRecord) {
+      await updateDoc(orgDoc('records', openRecord.recordId), { checkout: nowDate.toISOString() });
+      resultBox.className = 'out';
+      resultBox.textContent = `Salida registrada: ${student.name}${courseLabel} a las ${timeStr}`;
+    } else {
+      await addDoc(recordsCol, {
+        studentId: student.id,
+        studentName: student.name,
+        personType: personType(student),
+        course: course || null,
+        date: dateStr,
+        checkin: nowDate.toISOString(),
+        checkout: null
+      });
+      resultBox.className = 'in';
+      resultBox.textContent = `Entrada registrada: ${student.name}${courseLabel} a las ${timeStr}`;
+    }
+  } catch (err) {
+    resultBox.className = 'error';
+    resultBox.textContent = 'Error al registrar: ' + err.message;
+  }
+}
+
+function formatDuration(ms) {
+  const mins = Math.round(ms / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function toLocalDateInput(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function toDatetimeLocalValue(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+const ALERT_THRESHOLD_MS = 60 * 60 * 1000; // 60 minutos
+
+function renderOpenRecords() {
+  const alertCard = document.getElementById('open-alert-card');
+  const list = document.getElementById('open-records-list');
+  const now = Date.now();
+  const openRecords = records
+    .filter(r => {
+      if (r.checkout) return false;
+      const student = students.find(s => s.id === r.studentId);
+      const type = student ? personType(student) : (r.personType || 'alumno');
+      if (type !== 'alumno') return false; // profesores y personal suelen quedarse varias horas, no aplica la alerta
+      return (now - new Date(r.checkin).getTime()) > ALERT_THRESHOLD_MS;
+    })
+    .sort((a, b) => new Date(a.checkin) - new Date(b.checkin));
+
+  if (openRecords.length === 0) {
+    alertCard.style.display = 'none';
+    list.innerHTML = '';
+    return;
+  }
+  alertCard.style.display = 'block';
+
+  list.innerHTML = openRecords.map(r => {
+    const student = students.find(s => s.id === r.studentId);
+    const name = student ? student.name : (r.studentName || '(alumno eliminado)');
+    const type = student ? personType(student) : (r.personType || 'alumno');
+    const checkinTime = new Date(r.checkin);
+    const elapsedMs = now - checkinTime.getTime();
+    return `
+      <div class="open-record-row" id="open-row-${r.recordId}" style="border-bottom:1px solid var(--border); padding:10px 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div>
+            <strong>${name}</strong> <span class="badge type-${type}" style="margin-left:4px;">${typeLabels[type]}</span>${r.course ? ' · ' + r.course : ''}
+            <div style="font-size:12px; color:var(--text-secondary);">Entró: ${r.date} ${checkinTime.toLocaleTimeString()} · lleva ${formatDuration(elapsedMs)} adentro</div>
+          </div>
+          <button class="secondary print-btn" onclick="showManualCheckout('${r.recordId}')">Registrar salida manual</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function showManualCheckout(recordId) {
+  const row = document.getElementById('open-row-' + recordId);
+  if (!row) return;
+  const record = records.find(r => r.recordId === recordId);
+  const defaultValue = toDatetimeLocalValue(new Date());
+  row.innerHTML = `
+    <div style="padding:6px 0;">
+      <label>Fecha y hora de salida</label>
+      <input type="datetime-local" id="manual-checkout-input-${recordId}" value="${defaultValue}">
+      <div id="manual-checkout-error-${recordId}" style="color:var(--danger); font-size:12px; margin-top:4px; display:none;"></div>
+      <div class="row-actions" style="justify-content:flex-start; margin-top:8px;">
+        <button class="secondary print-btn" onclick="reviewManualCheckout('${recordId}')">Guardar salida</button>
+        <button class="secondary print-btn" onclick="renderOpenRecords()">Cancelar</button>
+      </div>
+    </div>
+  `;
+}
+
+function reviewManualCheckout(recordId) {
+  const record = records.find(r => r.recordId === recordId);
+  const input = document.getElementById('manual-checkout-input-' + recordId);
+  const errorBox = document.getElementById('manual-checkout-error-' + recordId);
+  const value = input.value;
+  if (!value) { errorBox.textContent = 'Selecciona una fecha y hora válidas.'; errorBox.style.display = 'block'; return; }
+  const checkoutDate = new Date(value);
+  const checkinDate = new Date(record.checkin);
+  if (checkoutDate < checkinDate) {
+    errorBox.textContent = 'La salida no puede ser antes de la hora de entrada (' + checkinDate.toLocaleString() + ').';
+    errorBox.style.display = 'block';
+    return;
+  }
+  const student = students.find(s => s.id === record.studentId);
+  const name = student ? student.name : (record.studentName || 'este alumno');
+  const row = document.getElementById('open-row-' + recordId);
+  row.innerHTML = `
+    <div style="padding:6px 0; background:var(--danger-bg); border-radius:8px; padding:10px;">
+      <div style="font-size:13px; color:var(--danger);">
+        ¿Confirmas registrar la salida de <strong>${name}</strong> el ${checkoutDate.toLocaleString()}?
+      </div>
+      <div class="row-actions" style="justify-content:flex-start; margin-top:8px;">
+        <button class="secondary print-btn" style="color:var(--danger); border-color:var(--danger);" onclick="confirmManualCheckout('${recordId}', '${checkoutDate.toISOString()}')">Sí, confirmar salida</button>
+        <button class="secondary print-btn" onclick="showManualCheckout('${recordId}')">Volver</button>
+      </div>
+    </div>
+  `;
+}
+
+async function confirmManualCheckout(recordId, isoDate) {
+  try {
+    await updateDoc(orgDoc('records', recordId), { checkout: isoDate, checkoutManual: true });
+  } catch (err) {
+    alert('No se pudo registrar la salida: ' + err.message);
+  }
+}
+
+window.showManualCheckout = showManualCheckout;
+window.reviewManualCheckout = reviewManualCheckout;
+window.confirmManualCheckout = confirmManualCheckout;
+window.renderOpenRecords = renderOpenRecords;
+
+let sortField = 'checkin';
+let sortDirection = 'asc'; // orden por defecto: en el orden en que entran al aula
+
+function getSortValue(r, field) {
+  const student = students.find(s => s.id === r.studentId);
+  const name = student ? student.name : (r.studentName || '');
+  switch (field) {
+    case 'name': return name.toLowerCase();
+    case 'type': return student ? personType(student) : (r.personType || 'alumno');
+    case 'course': return (r.course || '').toLowerCase();
+    case 'date': return new Date(r.checkin).getTime();
+    case 'checkin': return new Date(r.checkin).getTime();
+    case 'checkout': return r.checkout ? new Date(r.checkout).getTime() : Infinity; // sin salida al final
+    case 'duration': return r.checkout ? (new Date(r.checkout) - new Date(r.checkin)) : Infinity; // en curso al final
+    default: return 0;
+  }
+}
+
+function sortRecords(list) {
+  const sorted = list.slice().sort((a, b) => {
+    const va = getSortValue(a, sortField);
+    const vb = getSortValue(b, sortField);
+    if (va < vb) return sortDirection === 'asc' ? -1 : 1;
+    if (va > vb) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+  return sorted;
+}
+
+document.querySelectorAll('.sortable-th').forEach(th => {
+  th.addEventListener('click', () => {
+    const field = th.dataset.field;
+    if (sortField === field) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortField = field;
+      sortDirection = 'asc';
+    }
+    renderReports();
+  });
+});
+
+function updateSortArrows() {
+  document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+  const arrow = document.getElementById('sort-arrow-' + sortField);
+  if (arrow) arrow.textContent = sortDirection === 'asc' ? '▲' : '▼';
+}
+
+function getFilteredRecords() {
+  const filterId = document.getElementById('filter-student').value;
+  const filterType = document.getElementById('filter-report-type').value;
+  const filterCourse = document.getElementById('filter-course').value;
+  const filterStatus = document.getElementById('filter-status').value;
+  const dateFrom = document.getElementById('filter-date-from').value; // yyyy-mm-dd
+  const dateTo = document.getElementById('filter-date-to').value;
+
+  let filtered = records.slice();
+  if (filterId) filtered = filtered.filter(r => r.studentId === filterId);
+  if (filterType) filtered = filtered.filter(r => {
+    const student = students.find(s => s.id === r.studentId);
+    return student ? personType(student) === filterType : (r.personType || 'alumno') === filterType;
+  });
+  if (filterCourse) filtered = filtered.filter(r => r.course === filterCourse);
+  if (filterStatus === 'in') filtered = filtered.filter(r => !r.checkout);
+  if (filterStatus === 'out') filtered = filtered.filter(r => !!r.checkout);
+  if (dateFrom) filtered = filtered.filter(r => toLocalDateInput(new Date(r.checkin)) >= dateFrom);
+  if (dateTo) filtered = filtered.filter(r => toLocalDateInput(new Date(r.checkin)) <= dateTo);
+  return filtered;
+}
+
+function renderReports() {
+  renderOpenRecords();
+  const tbody = document.getElementById('report-body');
+
+  // Poblar el filtro de cursos con el catálogo real
+  const courseSelect = document.getElementById('filter-course');
+  const currentCourseValue = courseSelect.value;
+  courseSelect.innerHTML = '<option value="">Todos</option>' + courses.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+  courseSelect.value = courses.some(c => c.name === currentCourseValue) ? currentCourseValue : '';
+
+  const filtered = sortRecords(getFilteredRecords());
+  updateSortArrows();
+
+  tbody.innerHTML = '';
+  document.getElementById('report-empty').style.display = filtered.length === 0 ? 'block' : 'none';
+
+  let totalMs = 0;
+  filtered.forEach(r => {
+    const student = students.find(s => s.id === r.studentId);
+    const type = student ? personType(student) : (r.personType || 'alumno');
+    const checkinTime = new Date(r.checkin);
+    const checkoutTime = r.checkout ? new Date(r.checkout) : null;
+    const duration = checkoutTime ? checkoutTime - checkinTime : null;
+    if (duration) totalMs += duration;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${student ? student.name + (student.archived ? ' (archivado)' : '') : (r.studentName || '(alumno eliminado)')}</td>
+      <td><span class="badge type-${type}">${typeLabels[type]}</span></td>
+      <td>${r.course || '—'}</td>
+      <td>${r.date}</td>
+      <td>${checkinTime.toLocaleTimeString()}</td>
+      <td>${checkoutTime ? checkoutTime.toLocaleTimeString() : '—'}</td>
+      <td>${duration ? formatDuration(duration) : 'En curso'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const currentlyIn = students.filter(s => !s.archived && isCheckedIn(s.id)).length;
+  document.getElementById('stat-grid').innerHTML = `
+    <div class="stat-card"><div class="label">Alumnos registrados</div><div class="value">${students.filter(s => !s.archived).length}</div></div>
+    <div class="stat-card"><div class="label">En el aula ahora</div><div class="value">${currentlyIn}</div></div>
+    <div class="stat-card"><div class="label">Registros filtrados</div><div class="value">${filtered.length}</div></div>
+    <div class="stat-card"><div class="label">Tiempo acumulado (filtro)</div><div class="value">${formatDuration(totalMs)}</div></div>
+  `;
+}
+
+document.getElementById('filter-student').addEventListener('change', renderReports);
+document.getElementById('filter-report-type').addEventListener('change', renderReports);
+document.getElementById('filter-course').addEventListener('change', renderReports);
+document.getElementById('filter-status').addEventListener('change', renderReports);
+document.getElementById('filter-date-from').addEventListener('change', renderReports);
+document.getElementById('filter-date-to').addEventListener('change', renderReports);
+document.getElementById('btn-clear-filters').addEventListener('click', () => {
+  document.getElementById('filter-student').value = '';
+  document.getElementById('filter-report-type').value = '';
+  document.getElementById('filter-course').value = '';
+  document.getElementById('filter-status').value = '';
+  document.getElementById('filter-date-from').value = '';
+  document.getElementById('filter-date-to').value = '';
+  renderReports();
+});
+
+document.getElementById('input-search').addEventListener('input', renderStudents);
+
+document.getElementById('btn-print-catalog').addEventListener('click', () => {
+  if (students.length === 0) { alert('Aún no hay personas registradas.'); return; }
+  const typeFilter = document.getElementById('filter-person-type').value;
+  const source = typeFilter ? students.filter(s => personType(s) === typeFilter) : students;
+  if (source.length === 0) { alert('No hay personas para este filtro.'); return; }
+  const sorted = source.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const w = window.open('', '_blank');
+  const cards = sorted.map(s => `
+    <div class="cat-card">
+      <div class="cat-qr" id="cat-${s.id}"></div>
+      <div class="cat-name">${s.name}</div>
+      <div class="cat-type">${typeLabels[personType(s)]}</div>
+      <div class="cat-meta">${(s.courses || []).join(', ')}</div>
+    </div>
+  `).join('');
+  const scripts = sorted.map(s => `new QRCode(document.getElementById('cat-${s.id}'), { text: "${s.id}", width: 110, height: 110 });`).join('\n');
+  w.document.write(`
+    <html><head><title>Catálogo</title>
+    <style>
+      body { font-family: sans-serif; padding: 20px; }
+      h2 { text-align:center; }
+      .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+      .cat-card { text-align: center; border: 1px solid #ddd; border-radius: 8px; padding: 10px; break-inside: avoid; }
+      .cat-qr { display: flex; justify-content: center; margin-bottom: 6px; }
+      .cat-name { font-weight: 600; font-size: 13px; }
+      .cat-type { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.03em; }
+      .cat-meta { font-size: 11px; color: #666; }
+    </style>
+    </head>
+    <body>
+      <h2>Catálogo${typeFilter ? ' — ' + typeLabels[typeFilter] : ''}</h2>
+      <div class="cat-grid">${cards}</div>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+      <script>
+        ${scripts}
+        setTimeout(() => window.print(), 500);
+      <\/script>
+    </body></html>
+  `);
+});
+
+document.getElementById('input-person-type').addEventListener('change', (e) => {
+  const hideCourses = e.target.value === 'personal' || e.target.value === 'profesor';
+  document.getElementById('label-courses').style.display = hideCourses ? 'none' : '';
+  document.getElementById('course-checkboxes').style.display = hideCourses ? 'none' : '';
+});
+
+document.getElementById('input-show-archived').addEventListener('change', renderStudents);
+document.getElementById('filter-person-type').addEventListener('change', renderStudents);
+
+document.getElementById('btn-print-report').addEventListener('click', () => {
+  const filtered = sortRecords(getFilteredRecords());
+  if (filtered.length === 0) { alert('No hay registros que coincidan con los filtros actuales.'); return; }
+
+  const studentName = document.getElementById('filter-student').selectedOptions[0].textContent;
+  const typeName = document.getElementById('filter-report-type').selectedOptions[0].textContent;
+  const courseName = document.getElementById('filter-course').selectedOptions[0].textContent;
+  const statusName = document.getElementById('filter-status').selectedOptions[0].textContent;
+  const dateFrom = document.getElementById('filter-date-from').value || '—';
+  const dateTo = document.getElementById('filter-date-to').value || '—';
+  const summaryHtml = document.getElementById('stat-grid').innerHTML;
+
+  let totalMs = 0;
+  const rows = filtered.map(r => {
+    const student = students.find(s => s.id === r.studentId);
+    const type = student ? personType(student) : (r.personType || 'alumno');
+    const checkinTime = new Date(r.checkin);
+    const checkoutTime = r.checkout ? new Date(r.checkout) : null;
+    const duration = checkoutTime ? checkoutTime - checkinTime : null;
+    if (duration) totalMs += duration;
+    return `<tr>
+      <td>${student ? student.name : (r.studentName || '(alumno eliminado)')}</td>
+      <td>${typeLabels[type]}</td>
+      <td>${r.course || '—'}</td>
+      <td>${r.date}</td>
+      <td>${checkinTime.toLocaleTimeString()}</td>
+      <td>${checkoutTime ? checkoutTime.toLocaleTimeString() : '—'}</td>
+      <td>${duration ? formatDuration(duration) : 'En curso'}</td>
+    </tr>`;
+  }).join('');
+
+  const w = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>Reporte de asistencia</title>
+    <style>
+      body { font-family: sans-serif; padding: 24px; color: #222; }
+      h2 { margin-bottom: 4px; }
+      .filters { font-size: 12px; color: #555; margin-bottom: 16px; }
+      .summary { display:flex; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+      .summary-card { background:#f0efe9; border-radius:8px; padding:10px 14px; font-size:12px; }
+      table { width:100%; border-collapse: collapse; font-size: 12px; }
+      th, td { text-align:left; border-bottom:1px solid #ddd; padding:6px 8px; }
+      th { background:#f4f5f2; }
+    </style>
+    </head>
+    <body>
+      <h2>Reporte de asistencia</h2>
+      <div class="filters">
+        Persona: ${studentName} · Tipo: ${typeName} · Curso: ${courseName} · Estatus: ${statusName} · Del ${dateFrom} al ${dateTo} · Generado: ${new Date().toLocaleString()}
+      </div>
+      <div class="summary">${summaryHtml.replace(/class="stat-card"/g, 'class="summary-card"').replace(/class="label"/g, '').replace(/class="value"/g, '')}</div>
+      <table>
+        <thead><tr><th>Alumno</th><th>Tipo</th><th>Curso</th><th>Fecha</th><th>Entrada</th><th>Salida</th><th>Tiempo</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <script>setTimeout(() => window.print(), 400);<\/script>
+    </body></html>
+  `);
+});
+
+window.printQr = printQr;
+window.askRemoveStudent = askRemoveStudent;
+window.removeStudent = removeStudent;
+window.restoreStudent = restoreStudent;
+window.renderStudents = renderStudents;
 </script>
 </body>
 </html>
