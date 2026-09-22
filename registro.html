@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crear cuenta — Control de asistencia con QR</title>
+<style>
+  :root {
+    --bg: #f4f5f2; --card: #ffffff; --border: #dedcd2; --text: #24231f;
+    --text-secondary: #6d6b62; --accent: #185fa5; --accent-bg: #e6f1fb;
+    --danger: #a32d2d; --danger-bg: #fcebeb; --success: #0f6e56; --success-bg: #e1f5ee;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 28px 26px; max-width: 420px; width: 100%;
+  }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  p.sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 18px; }
+  label { display: block; font-size: 13px; color: var(--text-secondary); margin: 14px 0 4px; }
+  input {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; background: #fff; color: var(--text);
+  }
+  input:focus { outline: none; border-color: var(--accent); }
+  .hint { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+  button.primary {
+    margin-top: 20px; width: 100%; background: var(--accent); color: #fff; border: none;
+    padding: 11px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+  #msg { margin-top: 14px; padding: 12px; border-radius: 8px; font-size: 13px; display: none; }
+  #msg.error { background: var(--danger-bg); color: var(--danger); display: block; }
+  #msg.success { background: var(--success-bg); color: var(--success); display: block; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Crea tu cuenta</h1>
+  <p class="sub">Registra tu negocio para empezar a usar el control de asistencia con QR.</p>
+
+  <label>Nombre de tu negocio</label>
+  <input type="text" id="org-name" placeholder="Ej. Academia Deportiva Norte">
+
+  <label>Identificador único</label>
+  <input type="text" id="org-id" placeholder="ej. academia-norte">
+  <div class="hint">Solo letras, números y guiones. Será parte de la organización de tus datos, no se puede cambiar después.</div>
+
+  <label>Tu correo (será tu cuenta de administrador)</label>
+  <input type="text" id="admin-email" placeholder="correo@tunegocio.com">
+
+  <label>Contraseña</label>
+  <input type="password" id="admin-password" placeholder="Mínimo 6 caracteres">
+
+  <button class="primary" id="btn-submit">Crear mi cuenta</button>
+  <div id="msg"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBtknYhSzzMYJ21vffJmIyV-rchTxdDaak",
+  authDomain: "ckp-asistencia-qr.firebaseapp.com",
+  projectId: "ckp-asistencia-qr",
+  storageBucket: "ckp-asistencia-qr.firebasestorage.app",
+  messagingSenderId: "570471221314",
+  appId: "1:570471221314:web:0c2e58deedaf8b531345db"
+};
+
+const app = initializeApp(firebaseConfig);
+const functions = getFunctions(app); // región por defecto: us-central1
+const createOrganization = httpsCallable(functions, 'createOrganization');
+
+// Autogenerar sugerencia de ID a partir del nombre, pero permitir editarlo
+document.getElementById('org-name').addEventListener('input', (e) => {
+  const idField = document.getElementById('org-id');
+  if (idField.dataset.touched) return;
+  idField.value = e.target.value.trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+});
+document.getElementById('org-id').addEventListener('input', (e) => { e.target.dataset.touched = 'true'; });
+
+document.getElementById('btn-submit').addEventListener('click', async () => {
+  const orgName = document.getElementById('org-name').value.trim();
+  const orgId = document.getElementById('org-id').value.trim();
+  const adminEmail = document.getElementById('admin-email').value.trim();
+  const adminPassword = document.getElementById('admin-password').value;
+  const msg = document.getElementById('msg');
+  const btn = document.getElementById('btn-submit');
+
+  msg.style.display = 'none';
+  if (!orgName || !orgId || !adminEmail || !adminPassword) {
+    msg.className = 'error'; msg.textContent = 'Completa todos los campos.'; return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creando cuenta...';
+  try {
+    const result = await createOrganization({ orgId, orgName, adminEmail, adminPassword });
+    msg.className = 'success';
+    msg.textContent = '¡Listo! Tu cuenta "' + result.data.orgId + '" fue creada. Ya puedes iniciar sesión en la app con tu correo y contraseña.';
+    document.getElementById('org-name').value = '';
+    document.getElementById('org-id').value = '';
+    document.getElementById('admin-email').value = '';
+    document.getElementById('admin-password').value = '';
+  } catch (err) {
+    msg.className = 'error';
+    msg.textContent = err.message || 'Ocurrió un error al crear la cuenta.';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Crear mi cuenta';
+});
+</script>
+</body>
+</html>
