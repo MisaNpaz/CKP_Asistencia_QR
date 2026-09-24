@@ -65,7 +65,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+import { getFunctions, httpsCallableFromURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBtknYhSzzMYJ21vffJmIyV-rchTxdDaak",
@@ -78,7 +78,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const functions = getFunctions(app); // región por defecto: us-central1
-const createOrganization = httpsCallable(functions, 'createOrganization');
+const createOrganization = httpsCallableFromURL(functions, 'https://createorganization-570471221314.us-central1.run.app');
 
 // Autogenerar sugerencia de ID a partir del nombre, pero permitir editarlo
 document.getElementById('org-name').addEventListener('input', (e) => {
