@@ -64,21 +64,7 @@
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFunctions, httpsCallableFromURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBtknYhSzzMYJ21vffJmIyV-rchTxdDaak",
-  authDomain: "ckp-asistencia-qr.firebaseapp.com",
-  projectId: "ckp-asistencia-qr",
-  storageBucket: "ckp-asistencia-qr.firebasestorage.app",
-  messagingSenderId: "570471221314",
-  appId: "1:570471221314:web:0c2e58deedaf8b531345db"
-};
-
-const app = initializeApp(firebaseConfig);
-const functions = getFunctions(app); // región por defecto: us-central1
-const createOrganization = httpsCallableFromURL(functions, 'https://createorganization-570471221314.us-central1.run.app');
+const CREATE_ORG_URL = 'https://create0rganization-ck2xk54qia-uc.a.run.app';
 
 // Autogenerar sugerencia de ID a partir del nombre, pero permitir editarlo
 document.getElementById('org-name').addEventListener('input', (e) => {
@@ -106,9 +92,17 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = 'Creando cuenta...';
   try {
-    const result = await createOrganization({ orgId, orgName, adminEmail, adminPassword });
+    const response = await fetch(CREATE_ORG_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orgId, orgName, adminEmail, adminPassword })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Ocurrió un error al crear la cuenta.');
+    }
     msg.className = 'success';
-    msg.textContent = '¡Listo! Tu cuenta "' + result.data.orgId + '" fue creada. Ya puedes iniciar sesión en la app con tu correo y contraseña.';
+    msg.textContent = '¡Listo! Tu cuenta "' + result.orgId + '" fue creada. Ya puedes iniciar sesión en la app con tu correo y contraseña.';
     document.getElementById('org-name').value = '';
     document.getElementById('org-id').value = '';
     document.getElementById('admin-email').value = '';
