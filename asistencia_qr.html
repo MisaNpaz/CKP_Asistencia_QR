@@ -513,6 +513,13 @@ onAuthStateChanged(auth, async (user) => {
     try {
       const orgSnap = await getDoc(doc(db, 'organizations', orgId));
       orgName = orgSnap.exists() ? (orgSnap.data().name || orgId) : orgId;
+      if (orgSnap.exists() && orgSnap.data().status === 'suspended') {
+        document.getElementById('login-error').textContent = 'El acceso de tu organización está temporalmente suspendido. Contacta al administrador del servicio.';
+        document.getElementById('login-error').style.display = 'block';
+        orgId = null; orgName = ''; studentsCol = null; recordsCol = null; coursesCol = null;
+        await signOut(auth);
+        return;
+      }
     } catch (err) {
       orgName = orgId;
     }
