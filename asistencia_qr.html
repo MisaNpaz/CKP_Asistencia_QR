@@ -263,6 +263,15 @@
 
   <!-- ALUMNOS -->
   <div class="panel active" id="panel-alumnos">
+    <div class="card" id="onboarding-card" style="display:none; border-color:var(--accent); background:var(--accent-bg);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+        <h2 style="margin:0;">👋 Primeros pasos</h2>
+        <button class="secondary" id="btn-close-onboarding" style="white-space:nowrap;">Cerrar guía</button>
+      </div>
+      <p style="font-size:13px; color:var(--text-secondary); margin:6px 0 12px;">Sigue estos pasos para dejar tu organización lista para usarse. Se van marcando solos conforme avanzas.</p>
+      <div id="onboarding-steps"></div>
+    </div>
+
     <div class="card">
       <h2>Catálogo de cursos / materias</h2>
       <div style="display:flex; gap:8px;">
@@ -581,6 +590,7 @@ function startRealtimeListeners() {
     students = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     renderStudents();
     renderReports();
+    renderOnboarding();
   }, (err) => {
     document.getElementById('student-count').textContent = 'Error de conexión';
     console.error(err);
@@ -590,12 +600,14 @@ function startRealtimeListeners() {
     records = snapshot.docs.map(d => ({ recordId: d.id, ...d.data() }));
     renderStudents();
     renderReports();
+    renderOnboarding();
   }, (err) => console.error(err)));
 
   unsubscribers.push(onSnapshot(coursesCol, (snapshot) => {
     courses = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => a.name.localeCompare(b.name));
     renderCourseCatalog();
     renderCourseCheckboxes();
+    renderOnboarding();
   }, (err) => console.error(err)));
 }
 
@@ -1340,6 +1352,43 @@ document.getElementById('btn-add-user').addEventListener('click', async () => {
   }
   btn.disabled = false;
   btn.textContent = 'Crear usuario';
+});
+
+// ---------- ONBOARDING PARA ORGANIZACIONES NUEVAS ----------
+function onboardingKey() { return 'onboarding_dismissed_' + orgId; }
+
+function renderOnboarding() {
+  const card = document.getElementById('onboarding-card');
+  if (!orgId || currentRole !== 'admin') { card.style.display = 'none'; return; }
+  if (localStorage.getItem(onboardingKey()) === 'true') { card.style.display = 'none'; return; }
+
+  const step1 = courses.length > 0;
+  const step2 = students.length > 0;
+  const step3 = records.length > 0;
+
+  const steps = [
+    { done: step1, text: 'Crea tu primer curso o materia', hint: 'En "Catálogo de cursos" aquí abajo.' },
+    { done: step2, text: 'Registra tu primera persona (alumno, profesor o personal)', hint: 'En "Registrar persona", un poco más abajo.' },
+    { done: step3, text: 'Escanea su código QR para probar el registro de asistencia', hint: 'Pestaña "Escanear", arriba.' },
+    { done: false, text: 'Agrega más usuarios si necesitas operadores para escanear', hint: 'Pestaña "Usuarios", cuando quieras — este paso queda a tu criterio.', optional: true }
+  ];
+
+  document.getElementById('onboarding-steps').innerHTML = steps.map(s => `
+    <div style="display:flex; align-items:flex-start; gap:8px; padding:6px 0;">
+      <span style="font-size:16px; line-height:1.4;">${s.done ? '✅' : '⬜'}</span>
+      <div>
+        <div style="font-size:14px; ${s.done ? 'text-decoration:line-through; color:var(--text-secondary);' : ''}">${s.text}${s.optional ? ' <span style="color:var(--text-secondary); font-weight:normal;">(opcional)</span>' : ''}</div>
+        <div style="font-size:12px; color:var(--text-secondary);">${s.hint}</div>
+      </div>
+    </div>
+  `).join('');
+
+  card.style.display = 'block';
+}
+
+document.getElementById('btn-close-onboarding').addEventListener('click', () => {
+  localStorage.setItem(onboardingKey(), 'true');
+  document.getElementById('onboarding-card').style.display = 'none';
 });
 </script>
 </body>
