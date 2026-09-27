@@ -258,6 +258,7 @@
     <button class="tab-btn active" data-tab="alumnos" id="tab-btn-alumnos">Personas</button>
     <button class="tab-btn" data-tab="escanear">Escanear</button>
     <button class="tab-btn" data-tab="reportes" id="tab-btn-reportes">Reportes</button>
+    <button class="tab-btn" data-tab="usuarios" id="tab-btn-usuarios">Usuarios</button>
   </nav>
 
   <!-- ALUMNOS -->
@@ -392,6 +393,29 @@
       <div class="empty" id="report-empty" style="display:none;">Aún no hay registros de asistencia.</div>
     </div>
   </div>
+
+  <!-- USUARIOS -->
+  <div class="panel" id="panel-usuarios">
+    <div class="card">
+      <h2>Agregar usuario a tu organización</h2>
+      <label>Correo</label>
+      <input type="text" id="user-email" placeholder="correo@ejemplo.com">
+      <label>Contraseña</label>
+      <input type="password" id="user-password" placeholder="Mínimo 6 caracteres">
+      <label>Rol</label>
+      <select id="user-role">
+        <option value="operador">Operador (solo escanear)</option>
+        <option value="admin">Administrador (acceso completo)</option>
+      </select>
+      <button class="primary" id="btn-add-user">Crear usuario</button>
+      <div id="user-msg" style="margin-top:10px; font-size:13px; display:none;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Usuarios de tu organización</h2>
+      <div id="user-list"></div>
+    </div>
+  </div>
 </div>
 </div>
 
@@ -399,7 +423,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getFirestore, collection, doc, setDoc, deleteDoc, getDoc,
-  addDoc, updateDoc, onSnapshot
+  addDoc, updateDoc, onSnapshot, query, where, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
@@ -540,6 +564,7 @@ function applyRolePermissions() {
   const isAdmin = currentRole === 'admin';
   document.getElementById('tab-btn-alumnos').style.display = isAdmin ? '' : 'none';
   document.getElementById('tab-btn-reportes').style.display = isAdmin ? '' : 'none';
+  document.getElementById('tab-btn-usuarios').style.display = isAdmin ? '' : 'none';
   if (!isAdmin) {
     // El operador solo puede escanear
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -767,6 +792,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (btn.dataset.tab === 'escanear') startScanner();
     else stopScanner();
     if (btn.dataset.tab === 'reportes') renderReports();
+    if (btn.dataset.tab === 'usuarios') renderOrgUsers();
   });
 });
 
@@ -1247,6 +1273,74 @@ window.askRemoveStudent = askRemoveStudent;
 window.removeStudent = removeStudent;
 window.restoreStudent = restoreStudent;
 window.renderStudents = renderStudents;
+
+// ---------- USUARIOS DE LA ORGANIZACIÓN ----------
+const CREATE_ORG_USER_URL = 'https://createorguser-ck2xk54qia-uc.a.run.app';
+
+async function renderOrgUsers() {
+  const list = document.getElementById('user-list');
+  list.innerHTML = '<div class="empty">Cargando...</div>';
+  try {
+    const q = query(collection(db, 'userRoles'), where('orgId', '==', orgId));
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      list.innerHTML = '<div class="empty">No hay usuarios registrados (raro, deberías ver al menos tu propia cuenta).</div>';
+      return;
+    }
+    const users = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+    list.innerHTML = users.map(u => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border);">
+        <div>
+          <strong>${u.email || '(sin correo registrado)'}</strong>
+          <div style="font-size:12px; color:var(--text-secondary);">${u.role === 'admin' ? 'Administrador' : 'Operador'}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    list.innerHTML = '<div class="empty">No se pudo cargar la lista: ' + err.message + '</div>';
+  }
+}
+
+document.getElementById('btn-add-user').addEventListener('click', async () => {
+  const email = document.getElementById('user-email').value.trim();
+  const password = document.getElementById('user-password').value;
+  const role = document.getElementById('user-role').value;
+  const msg = document.getElementById('user-msg');
+  const btn = document.getElementById('btn-add-user');
+
+  msg.style.display = 'none';
+  if (!email || !password) {
+    msg.className = ''; msg.style.color = 'var(--danger)';
+    msg.textContent = 'Completa correo y contraseña.'; msg.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Creando...';
+  try {
+    const idToken = await auth.currentUser.getIdToken();
+    const response = await fetch(CREATE_ORG_USER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+      body: JSON.stringify({ email, password, role })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Error al crear el usuario.');
+
+    msg.style.color = 'var(--success)';
+    msg.textContent = 'Usuario creado correctamente.';
+    msg.style.display = 'block';
+    document.getElementById('user-email').value = '';
+    document.getElementById('user-password').value = '';
+    renderOrgUsers();
+  } catch (err) {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = err.message;
+    msg.style.display = 'block';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Crear usuario';
+});
 </script>
 </body>
 </html>
